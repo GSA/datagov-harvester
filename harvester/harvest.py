@@ -97,8 +97,8 @@ from harvester.utils.reharvest_links import create_reharvest_url
 # logging data
 logger = logging.getLogger("harvest_runner")
 
-UNCHANGED_COUNT_BATCH_SIZE = 100
-UNCHANGED_COUNT_FLUSH_SECONDS = 2
+RECORD_COUNT_BATCH_SIZE = 100
+RECORD_COUNT_FLUSH_SECONDS = 2
 
 # Harvest source schema_type -> the public validator's schema name, so
 # validator_for returns the same cached validators (record_validator).
@@ -152,8 +152,8 @@ class HarvestSource:
     deletions: set = field(default_factory=lambda: set(), repr=False)
     _opensearch: object = field(default=None, init=False, repr=False)
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
-    _pending_unchanged_count: int = field(default=0, init=False, repr=False)
-    _pending_unchanged_since: float | None = field(default=None, init=False, repr=False)
+    _pending_count: int = field(default=0, init=False, repr=False)
+    _pending_count_since: float | None = field(default=None, init=False, repr=False)
     timings: HarvestTimings = field(
         default_factory=HarvestTimings, init=False, repr=False
     )
@@ -312,7 +312,12 @@ class HarvestSource:
             )
 
     def update_job_record_count_by_action(self, action: str):
-        """Update the reporter and persist counts, batching unchanged records.
+        """Update the reporter and persist counts in batches.
+
+        A job row write per record update was a large share of harvest time,
+        so counts are written every RECORD_COUNT_BATCH_SIZE updates or
+        RECORD_COUNT_FLUSH_SECONDS, which keeps progress visible during long
+        runs.
 
         record actions are:
             create
@@ -324,31 +329,28 @@ class HarvestSource:
             warned
         """
         self.reporter.update(action)
-        if action is None:
-            # unchanged records can dominate a harvest; avoid a database write
-            # for each one while keeping progress visible during long runs.
-            if self._pending_unchanged_since is None:
-                self._pending_unchanged_since = time.monotonic()
-            self._pending_unchanged_count += 1
-            if (
-                self._pending_unchanged_count < UNCHANGED_COUNT_BATCH_SIZE
-                and time.monotonic() - self._pending_unchanged_since
-                < UNCHANGED_COUNT_FLUSH_SECONDS
-            ):
-                return
+        if self._pending_count_since is None:
+            self._pending_count_since = time.monotonic()
+        self._pending_count += 1
+        if (
+            self._pending_count < RECORD_COUNT_BATCH_SIZE
+            and time.monotonic() - self._pending_count_since
+            < RECORD_COUNT_FLUSH_SECONDS
+        ):
+            return
 
         self._persist_job_record_counts()
 
     def _persist_job_record_counts(self) -> None:
-        """persist the current counts to the database and reset the pending unchanged count."""
+        """persist the current counts to the database and reset the pending count."""
         with self.timings.time("job_counts"):
             self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
-        self._pending_unchanged_count = 0
-        self._pending_unchanged_since = None
+        self._pending_count = 0
+        self._pending_count_since = None
 
-    def flush_pending_unchanged_counts(self) -> None:
+    def flush_pending_counts(self) -> None:
         """Persist the last partial batch when record processing ends."""
-        if self._pending_unchanged_count:
+        if self._pending_count:
             self._persist_job_record_counts()
 
     def get_source_orm(self) -> HarvestSourceORM:
@@ -824,7 +826,7 @@ class HarvestSource:
             return
         finally:
             # A harvest may end before the count or time threshold is reached.
-            self.flush_pending_unchanged_counts()
+            self.flush_pending_counts()
             logger.info("harvest timings: %s", self.timings.summary())
 
     def finish_job_with_status(self, status: str):
