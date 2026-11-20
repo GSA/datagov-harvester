@@ -796,13 +796,14 @@ class HarvesterDBInterface:
 
     def add_harvest_record_errors(
         self, error_rows: list[dict], mirror: bool = True
-    ) -> bool:
+    ) -> list[dict]:
         """Insert several errors in one commit, then mirror them in one more.
 
         Same end state as calling add_harvest_record_error for each row, with
-        two commits in total instead of two per row. Pass mirror=False when
-        sync_current_record_issues is about to rebuild the record's current
-        issues anyway.
+        two commits in total instead of two per row. If the batch fails, rows
+        are retried one at a time so one bad row doesn't drop the rest. Pass
+        mirror=False when sync_current_record_issues is about to rebuild the
+        record's current issues anyway. Returns the rows that were stored.
         """
         issues = [
             {"id": str(uuid.uuid4()), "date_created": datetime.now(timezone.utc), **row}
@@ -811,16 +812,25 @@ class HarvesterDBInterface:
         try:
             self.db.add_all(HarvestRecordError(**issue) for issue in issues)
             self.db.commit()
+            stored = issues
         except Exception as e:
             logger.error("Error: %s", e)
             self.db.rollback()
-            return False
+            stored = []
+            for issue in issues:
+                try:
+                    self.db.add(HarvestRecordError(**issue))
+                    self.db.commit()
+                    stored.append(issue)
+                except Exception as row_error:
+                    logger.error("Error: %s", row_error)
+                    self.db.rollback()
         if mirror:
-            self._mirror_current_record_issues(issues)
-        return True
+            self.mirror_current_record_issues(stored)
+        return stored
 
     def _mirror_current_record_issue(self, error: HarvestRecordError) -> None:
-        self._mirror_current_record_issues(
+        self.mirror_current_record_issues(
             [
                 {
                     "id": error.id,
@@ -832,7 +842,7 @@ class HarvesterDBInterface:
             ]
         )
 
-    def _mirror_current_record_issues(self, issues: list[dict]) -> None:
+    def mirror_current_record_issues(self, issues: list[dict]) -> None:
         """Keep harvest_record_current_issue in sync as errors are written,
         rather than waiting on the full resync in sync_current_record_issues.
         Takes plain values so callers don't reload expired error rows.

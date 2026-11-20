@@ -1183,6 +1183,8 @@ class Record:
 
     transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
+    # issues validate() stored without the live current-issue mirror
+    _unmirrored_issues: list = field(default_factory=list, init=False, repr=False)
     reader_map: dict = field(
         default_factory=lambda: {
             "iso19115_1": "iso19115_2_datagov",
@@ -1622,7 +1624,11 @@ class Record:
             return
         # harvest() calls sync_current_issues() next, which rebuilds this
         # record's current issues from these rows
-        self.harvest_source.db_interface.add_harvest_record_errors(rows, mirror=False)
+        self._unmirrored_issues = (
+            self.harvest_source.db_interface.add_harvest_record_errors(
+                rows, mirror=False
+            )
+        )
         if errors:
             self.status = "error"
             self.harvest_source.db_interface.update_harvest_record(
@@ -1712,13 +1718,19 @@ class Record:
         validate() just reported (#6440)."""
         if self.id is None:
             return
-        self.harvest_source.db_interface.sync_current_record_issues(
+        synced = self.harvest_source.db_interface.sync_current_record_issues(
             self.harvest_source.id,
             self.record_type,
             self.identifier,
             self.id,
             skip_types=(DuplicateIdentifierException.__name__,),
         )
+        if not synced and self._unmirrored_issues:
+            # validate() skipped the live mirror for these, so don't lose them
+            self.harvest_source.db_interface.mirror_current_record_issues(
+                self._unmirrored_issues
+            )
+        self._unmirrored_issues = []
 
     def _metadata_for_dataset(self):
         if self.transformed_data is not None:
