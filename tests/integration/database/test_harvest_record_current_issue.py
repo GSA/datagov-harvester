@@ -40,6 +40,71 @@ def test_add_harvest_record_error_mirrors_current_issue(
     assert current_errors[0].error.severity == "warning"
 
 
+def test_add_harvest_record_errors_writes_and_mirrors_each_row(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+    record_data_dcatus,
+):
+    """The batch insert leaves the same error and current-issue rows as
+    one add_harvest_record_error call per row."""
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+    record = interface.add_harvest_record(record_data_dcatus[2])
+    rows = [
+        {
+            "message": message,
+            "type": "TestException",
+            "harvest_job_id": job_data_dcatus["id"],
+            "harvest_record_id": record.id,
+            "severity": severity,
+        }
+        for message, severity in [("an error", "error"), ("a warning", "warning")]
+    ]
+
+    assert len(interface.add_harvest_record_errors(rows)) == 2
+
+    errors = interface.get_harvest_record_errors_by_record(record.id, severity=None)
+    current = (
+        interface.db.query(HarvestRecordCurrentIssue)
+        .filter_by(harvest_source_id=source_data_dcatus["id"])
+        .all()
+    )
+    assert sorted((e.message, e.severity) for e in errors) == [
+        ("a warning", "warning"),
+        ("an error", "error"),
+    ]
+    assert {c.id for c in current} == {e.id for e in errors}
+    assert {c.identifier for c in current} == {record.identifier}
+
+
+def test_add_harvest_record_errors_without_record_skips_mirror(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    interface.add_organization(organization_data)
+    interface.add_harvest_source(source_data_dcatus)
+    interface.add_harvest_job(job_data_dcatus)
+
+    assert interface.add_harvest_record_errors(
+        [
+            {
+                "message": "no record",
+                "type": "TestException",
+                "harvest_job_id": job_data_dcatus["id"],
+                "harvest_record_id": None,
+                "severity": "error",
+            }
+        ]
+    )
+
+    assert interface.db.query(HarvestRecordCurrentIssue).count() == 0
+
+
 def test_sync_current_record_issues_replaces_prior_set(
     interface,
     organization_data,

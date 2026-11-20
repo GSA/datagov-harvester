@@ -3,10 +3,12 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from functools import partial
-from itertools import chain
 from typing import List
 
 import requests
@@ -66,6 +68,7 @@ from harvester.exceptions import (
     log_non_critical_error,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
+from harvester.lib.harvest_timings import HarvestTimings
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.env_utils import with_environment_prefix
@@ -96,8 +99,30 @@ from harvester.utils.reharvest_links import create_reharvest_url
 # logging data
 logger = logging.getLogger("harvest_runner")
 
-UNCHANGED_COUNT_BATCH_SIZE = 100
-UNCHANGED_COUNT_FLUSH_SECONDS = 2
+RECORD_COUNT_BATCH_SIZE = 100
+RECORD_COUNT_FLUSH_SECONDS = 2
+OPENSEARCH_BATCH_SIZE = 100
+# a queued document waits at most this long; see queue_opensearch_document
+OPENSEARCH_FLUSH_SECONDS = 2
+GEO_CACHE_SIZE = 1024
+MAX_RECORD_WORKERS = 16
+# first citation title in an ISO 19115 document, before MDTranslator runs
+ISO_TITLE_PATTERN = re.compile(
+    r"<gmd:title>\s*<gco:CharacterString>([^<]*)</gco:CharacterString>"
+)
+
+
+def record_worker_count() -> int:
+    """HARVEST_RECORD_WORKERS as an int in 1..MAX_RECORD_WORKERS; a bad value
+    falls back to 1 rather than failing the job."""
+    value = os.getenv("HARVEST_RECORD_WORKERS", "1")
+    try:
+        workers = int(value)
+    except ValueError:
+        logger.warning("Ignoring HARVEST_RECORD_WORKERS=%r; using 1", value)
+        return 1
+    return min(max(workers, 1), MAX_RECORD_WORKERS)
+
 
 # Harvest source schema_type -> the public validator's schema name, so
 # validator_for returns the same cached validators (record_validator).
@@ -151,8 +176,22 @@ class HarvestSource:
     deletions: set = field(default_factory=lambda: set(), repr=False)
     _opensearch: object = field(default=None, init=False, repr=False)
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
-    _pending_unchanged_count: int = field(default=0, init=False, repr=False)
-    _pending_unchanged_since: float | None = field(default=None, init=False, repr=False)
+    _pending_count: int = field(default=0, init=False, repr=False)
+    _opensearch_documents: list = field(default_factory=list, init=False, repr=False)
+    _opensearch_needs_refresh: bool = field(default=False, init=False, repr=False)
+    _opensearch_queued_since: float | None = field(default=None, init=False, repr=False)
+    _geo_cache: dict = field(default_factory=dict, init=False, repr=False)
+    # guard state that record workers share (see harvest_records)
+    _counts_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False, compare=False
+    )
+    _opensearch_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False, compare=False
+    )
+    _pending_count_since: float | None = field(default=None, init=False, repr=False)
+    timings: HarvestTimings = field(
+        default_factory=HarvestTimings, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
@@ -308,7 +347,12 @@ class HarvestSource:
             )
 
     def update_job_record_count_by_action(self, action: str):
-        """Update the reporter and persist counts, batching unchanged records.
+        """Update the reporter and persist counts in batches.
+
+        A job row write per record update was a large share of harvest time,
+        so counts are written every RECORD_COUNT_BATCH_SIZE updates or
+        RECORD_COUNT_FLUSH_SECONDS, which keeps progress visible during long
+        runs.
 
         record actions are:
             create
@@ -319,32 +363,135 @@ class HarvestSource:
             validated
             warned
         """
-        self.reporter.update(action)
-        if action is None:
-            # unchanged records can dominate a harvest; avoid a database write
-            # for each one while keeping progress visible during long runs.
-            if self._pending_unchanged_since is None:
-                self._pending_unchanged_since = time.monotonic()
-            self._pending_unchanged_count += 1
+        with self._counts_lock:
+            self.reporter.update(action)
+            if self._pending_count_since is None:
+                self._pending_count_since = time.monotonic()
+            self._pending_count += 1
             if (
-                self._pending_unchanged_count < UNCHANGED_COUNT_BATCH_SIZE
-                and time.monotonic() - self._pending_unchanged_since
-                < UNCHANGED_COUNT_FLUSH_SECONDS
+                self._pending_count < RECORD_COUNT_BATCH_SIZE
+                and time.monotonic() - self._pending_count_since
+                < RECORD_COUNT_FLUSH_SECONDS
             ):
                 return
 
-        self._persist_job_record_counts()
+            self._persist_job_record_counts()
 
     def _persist_job_record_counts(self) -> None:
-        """persist the current counts to the database and reset the pending unchanged count."""
-        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
-        self._pending_unchanged_count = 0
-        self._pending_unchanged_since = None
+        """persist the current counts to the database and reset the pending count."""
+        with self.timings.time("job_counts"):
+            self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+        self._pending_count = 0
+        self._pending_count_since = None
 
-    def flush_pending_unchanged_counts(self) -> None:
+    def flush_pending_counts(self) -> None:
         """Persist the last partial batch when record processing ends."""
-        if self._pending_unchanged_count:
-            self._persist_job_record_counts()
+        with self._counts_lock:
+            if self._pending_count:
+                self._persist_job_record_counts()
+
+    def geo_from_string(self, location_name, literal=False):
+        """db_interface.get_geo_from_string, cached for the job: records
+        repeat the same place names and the locations table doesn't change
+        during a harvest. Failed lookups aren't cached."""
+        key = (location_name, literal)
+        if key in self._geo_cache:
+            return self._geo_cache[key]
+        try:
+            location = self.db_interface.query_geo_from_string(location_name, literal)
+        except Exception as e:
+            logger.error(
+                'Error querying "{}" locations table {}'.format(location_name, e)
+            )
+            return None
+        if len(self._geo_cache) < GEO_CACHE_SIZE:
+            self._geo_cache[key] = location
+        return location
+
+    def queue_opensearch_document(self, document: dict) -> None:
+        """Queue a document for the next bulk index.
+
+        A record is already committed as successful when its document is
+        queued, and a later harvest won't re-index an unchanged record, so
+        queued documents are sent within OPENSEARCH_FLUSH_SECONDS (see
+        flush_opensearch_documents_if_due) to keep what a killed task can
+        lose small.
+        """
+        with self._opensearch_lock:
+            self._opensearch_documents.append(document)
+            if self._opensearch_queued_since is None:
+                self._opensearch_queued_since = time.monotonic()
+            if not self._opensearch_flush_due():
+                return
+            documents = self._take_opensearch_documents()
+        self._index_opensearch_documents(documents)
+
+    def flush_opensearch_documents_if_due(self) -> None:
+        with self._opensearch_lock:
+            if not self._opensearch_flush_due():
+                return
+            documents = self._take_opensearch_documents()
+        self._index_opensearch_documents(documents)
+
+    def flush_opensearch_documents(self) -> None:
+        with self._opensearch_lock:
+            documents = self._take_opensearch_documents()
+        self._index_opensearch_documents(documents)
+
+    def _opensearch_flush_due(self) -> bool:
+        return bool(self._opensearch_documents) and (
+            len(self._opensearch_documents) >= OPENSEARCH_BATCH_SIZE
+            or time.monotonic() - self._opensearch_queued_since
+            >= OPENSEARCH_FLUSH_SECONDS
+        )
+
+    def _take_opensearch_documents(self) -> list:
+        documents, self._opensearch_documents = self._opensearch_documents, []
+        self._opensearch_queued_since = None
+        return documents
+
+    def _index_opensearch_documents(self, documents: list) -> None:
+        """Bulk index documents without refreshing the index; a refresh per
+        document was a large share of harvest time."""
+        if not documents or self.opensearch is None:
+            return
+        self.note_opensearch_change()
+        try:
+            with self.timings.time("opensearch_flush"):
+                succeeded, failed, errors = self.opensearch.index_documents(
+                    documents, refresh_after=False
+                )
+        except Exception as e:
+            logger.exception(
+                "OpenSearch indexing error for %s datasets: %s", len(documents), e
+            )
+            return
+        if failed:
+            logger.error(
+                "OpenSearch indexing failed for %s of %s datasets: %s",
+                failed,
+                len(documents),
+                errors,
+            )
+        else:
+            logger.info("Indexed %s datasets in OpenSearch", succeeded)
+
+    def note_opensearch_change(self) -> None:
+        """Mark the index as changed so finish_opensearch_writes refreshes it."""
+        self._opensearch_needs_refresh = True
+
+    def finish_opensearch_writes(self) -> None:
+        """Send any queued documents and refresh once so this job's writes
+        are searchable."""
+        self.flush_opensearch_documents()
+        if not self._opensearch_needs_refresh or self.opensearch is None:
+            return
+        self._opensearch_needs_refresh = False
+        try:
+            with self.timings.time("opensearch_refresh"):
+                self.opensearch.refresh()
+        except Exception as e:
+            logger.exception("OpenSearch refresh error: %s", e)
 
     def get_source_orm(self) -> HarvestSourceORM:
         """Get the harvest source object from the database."""
@@ -608,11 +755,13 @@ class HarvestSource:
                 record = self.external_records.pop(0)
                 parent_identifier = None
                 if self.source_type == "waf":
-                    record["content"] = download_file(record["identifier"], ".xml")
+                    with self.timings.time("download_xml"):
+                        record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
 
                 elif self.source_type == "waf-collection":
-                    record["content"] = download_file(record["identifier"], ".xml")
+                    with self.timings.time("download_xml"):
+                        record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
                     # the collection root has no parent of its own
                     if record["identifier"] != self.collection_parent_url:
@@ -775,7 +924,8 @@ class HarvestSource:
 
     def run_full_harvest(self) -> None:
         try:
-            self.acquire_data_sources()
+            with self.timings.time("acquire_data_sources"):
+                self.acquire_data_sources()
 
             self.filter_datasets_with_no_identifier()
 
@@ -803,19 +953,78 @@ class HarvestSource:
                 )
             )
 
-            # deletions would occur first based on the arg positions
-            records = chain(internal_records_to_delete, external_records_to_process)
-
-            for record in records:
-                record.harvest()
-                del record
+            # deletions finish before new and changed records start
+            self.harvest_records(internal_records_to_delete)
+            self.harvest_records(external_records_to_process)
 
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
             return
         finally:
             # A harvest may end before the count or time threshold is reached.
-            self.flush_pending_unchanged_counts()
+            self.flush_pending_counts()
+            self.finish_opensearch_writes()
+            logger.info("harvest timings: %s", self.timings.summary())
+
+    def harvest_records(self, records) -> None:
+        """Run harvest() on each record, on HARVEST_RECORD_WORKERS threads.
+
+        Record processing is mostly waiting on Postgres, OpenSearch, and
+        MDTranslator, so a few threads overlap that waiting. With one worker
+        records run in order on this thread, as before.
+        """
+        workers = record_worker_count()
+        if workers == 1:
+            for record in records:
+                self._harvest_record(record)
+            return
+
+        # create the shared client here rather than racing in the workers
+        _ = self.opensearch
+        # One single-threaded lane per worker. Records that would get the same
+        # slug go to the same lane, so they keep catalog order and the first
+        # one still gets the slug without a uuid suffix.
+        lanes = [
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"harvest-record-{n}")
+            for n in range(workers)
+        ]
+        # cap queued records so a large source isn't pulled into memory
+        max_in_flight = workers * 2
+        in_flight = set()
+        try:
+            for record in records:
+                if len(in_flight) >= max_in_flight:
+                    done, in_flight = wait(in_flight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        future.result()
+                lane = lanes[hash(record.slug_key()) % workers]
+                in_flight.add(lane.submit(self._harvest_record_in_worker, record))
+        except BaseException:
+            # stopping (an error or SIGTERM): skip records not started yet
+            for future in in_flight:
+                future.cancel()
+            raise
+        finally:
+            done, _ = wait(in_flight)
+            for lane in lanes:
+                lane.shutdown(wait=True)
+        for future in done:
+            future.result()
+
+    def _harvest_record(self, record) -> None:
+        with self.timings.time("record"):
+            record.harvest()
+        self.flush_opensearch_documents_if_due()
+
+    def _harvest_record_in_worker(self, record) -> None:
+        try:
+            self._harvest_record(record)
+        finally:
+            # each worker thread has its own scoped session; hand its
+            # connection back between records
+            remove = getattr(self.db_interface.db, "remove", None)
+            if remove is not None:
+                remove()
 
     def finish_job_with_status(self, status: str):
         """
@@ -1037,6 +1246,8 @@ class Record:
 
     transformed_data: dict = None
     ckanified_metadata: dict = field(default_factory=lambda: {})
+    # issues validate() stored without the live current-issue mirror
+    _unmirrored_issues: list = field(default_factory=list, init=False, repr=False)
     reader_map: dict = field(
         default_factory=lambda: {
             "iso19115_1": "iso19115_2_datagov",
@@ -1172,19 +1383,25 @@ class Record:
                     self.harvest_source.id, self.record_type, self.identifier
                 )
                 return
-            self.compare()
+            timings = self.harvest_source.timings
+            with timings.time("record.compare"):
+                self.compare()
             if self.action is None:
                 return
             if self.harvest_source.schema_type.startswith("iso19115"):
-                self.transform()
-                self.add_parent()
-                self.replace_identifier()
-                self.fill_placeholders()
-                self.improve_distributions()
-                self._save_transformed_data()
-            self.validate()
-            self.sync_current_issues()
-            self.sync()
+                with timings.time("record.transform"):
+                    self.transform()
+                    self.add_parent()
+                    self.replace_identifier()
+                    self.fill_placeholders()
+                    self.improve_distributions()
+                    self._save_transformed_data()
+            with timings.time("record.validate"):
+                self.validate()
+            with timings.time("record.sync_current_issues"):
+                self.sync_current_issues()
+            with timings.time("record.sync"):
+                self.sync()
         except (
             CompareException,
             TransformationException,
@@ -1227,7 +1444,7 @@ class Record:
         try:
             record_mapping = make_record_mapping(self)
             db_record = self.harvest_source.db_interface.add_harvest_record(
-                record_mapping
+                record_mapping, reload=False
             )
             self.id = db_record.id
         except Exception as e:
@@ -1429,13 +1646,7 @@ class Record:
         to `raise e` after calling this method.
         """
 
-        e_msg = re.sub(r"\\+", r"\\", repr(e))
-
-        error_type = (
-            VALIDATION_ERROR_TYPE
-            if isinstance(e, ValidationError)
-            else e.__class__.__name__
-        )
+        e_msg, error_type = self._error_message_and_type(e)
 
         self.status = "error"
         log_non_critical_error(
@@ -1445,6 +1656,47 @@ class Record:
             error_type,
             emit_log=False,
         )
+
+    @staticmethod
+    def _error_message_and_type(e) -> tuple[str, str]:
+        e_msg = re.sub(r"\\+", r"\\", repr(e))
+        error_type = (
+            VALIDATION_ERROR_TYPE
+            if isinstance(e, ValidationError)
+            else e.__class__.__name__
+        )
+        return e_msg, error_type
+
+    def _report_validation_issues(self, errors: list, warnings: list) -> None:
+        """Persist validate()'s errors and warnings together, with the same
+        rows _report_error and _report_warning would write one at a time."""
+
+        def row(message, issue_type, severity):
+            return {
+                "message": message,
+                "type": issue_type,
+                "date_created": datetime.now(timezone.utc),
+                "harvest_job_id": self.harvest_source.job_id,
+                "harvest_record_id": self.id,
+                "severity": severity,
+            }
+
+        rows = [row(*self._error_message_and_type(e), "error") for e in errors]
+        rows += [row(w.message, w.warning_type, "warning") for w in warnings]
+        if not rows:
+            return
+        # harvest() calls sync_current_issues() next, which rebuilds this
+        # record's current issues from these rows
+        self._unmirrored_issues = (
+            self.harvest_source.db_interface.add_harvest_record_errors(
+                rows, mirror=False
+            )
+        )
+        if errors:
+            self.status = "error"
+            self.harvest_source.db_interface.update_harvest_record(
+                self.id, {"status": "error"}
+            )
 
     def _report_warning(self, warning: DcatWarning) -> None:
         """Persist a DCAT-US 3 content-quality warning.
@@ -1484,16 +1736,11 @@ class Record:
         else:
             record = self.transformed_data
 
-        # save ourselves a second call to is_valid by keeping a flag of
-        # whether we saw any errors
-        valid = True
-
         validator = self.harvest_source.validator_for(self.record_type)
-        errors = validator.iter_errors(record)
-        errors = assemble_validation_errors(errors)
-        for error in errors:
-            valid = False
-            self._report_error(error)
+        with self.harvest_source.timings.time("record.validate.schema"):
+            errors = list(assemble_validation_errors(validator.iter_errors(record)))
+        valid = not errors
+        warnings = []
 
         # DCAT-US 3 content-quality warnings are detected regardless of schema
         # validity and never change the record's status. A record can be both
@@ -1501,17 +1748,19 @@ class Record:
         if self.harvest_source.schema_type == "dcatus3.0":
             # Matched literally, as the public validator does (it can't afford
             # wildcard matching); real place names never contain % _ or \.
-            warnings = detect_dcat_warnings(
-                record,
-                partial(
-                    self.harvest_source.db_interface.get_geo_from_string,
-                    literal=True,
-                ),
-            )
-            for warning in warnings:
-                self._report_warning(warning)
+            with self.harvest_source.timings.time("record.validate.detect_warnings"):
+                warnings = detect_dcat_warnings(
+                    record,
+                    partial(
+                        self.harvest_source.geo_from_string,
+                        literal=True,
+                    ),
+                )
             if warnings:
                 self.harvest_source.update_job_record_count_by_action("warned")
+
+        with self.harvest_source.timings.time("record.validate.report_issues"):
+            self._report_validation_issues(errors, warnings)
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
@@ -1532,13 +1781,19 @@ class Record:
         validate() just reported (#6440)."""
         if self.id is None:
             return
-        self.harvest_source.db_interface.sync_current_record_issues(
+        synced = self.harvest_source.db_interface.sync_current_record_issues(
             self.harvest_source.id,
             self.record_type,
             self.identifier,
             self.id,
             skip_types=(DuplicateIdentifierException.__name__,),
         )
+        if not synced and self._unmirrored_issues:
+            # validate() skipped the live mirror for these, so don't lose them
+            self.harvest_source.db_interface.mirror_current_record_issues(
+                self._unmirrored_issues
+            )
+        self._unmirrored_issues = []
 
     def _metadata_for_dataset(self):
         if self.transformed_data is not None:
@@ -1573,7 +1828,7 @@ class Record:
             spatial_value = munge_spatial(spatial_value)
 
         translated_spatial = translate_spatial_to_geojson(
-            spatial_value, self.harvest_source.db_interface.get_geo_from_string
+            spatial_value, self.harvest_source.geo_from_string
         )
         payload["translated_spatial"] = translated_spatial
         try:
@@ -1592,6 +1847,8 @@ class Record:
         return payload
 
     def _index_dataset_in_opensearch(self, dataset) -> None:
+        """Build the dataset's search document now, so a bad document fails
+        this record, and queue it for the next bulk index."""
         client = self.harvest_source.opensearch
         if client is None:
             if dataset is not None:
@@ -1602,21 +1859,10 @@ class Record:
             return
         if dataset is None:
             return
+        from search.documents import DatasetDocument
+
         try:
-            succeeded, failed, errors = client.index_datasets([dataset])
-            if failed:
-                logger.error(
-                    "OpenSearch indexing failed for dataset %s (slug %s): %s",
-                    dataset.id,
-                    dataset.slug,
-                    errors,
-                )
-            elif succeeded:
-                logger.info(
-                    "Indexed dataset '%s' (slug: %s) in OpenSearch",
-                    dataset.dcat.get("title", dataset.id),
-                    dataset.slug,
-                )
+            document = DatasetDocument(dataset).dataset_to_document()
         except EmptyFieldNameException as e:
             logger.error(
                 "Validation failed for dataset %s (slug %s): %s",
@@ -1632,6 +1878,8 @@ class Record:
                 dataset.slug,
                 e,
             )
+            return
+        self.harvest_source.queue_opensearch_document(document)
 
     def _delete_dataset_from_opensearch(self, dataset) -> None:
         client = self.harvest_source.opensearch
@@ -1645,7 +1893,8 @@ class Record:
         if dataset is None:
             return
         try:
-            client.delete_dataset_by_id(dataset.id)
+            client.delete_dataset_by_id(dataset.id, refresh_after=False)
+            self.harvest_source.note_opensearch_change()
             logger.info(
                 "Removed dataset (slug: %s) from OpenSearch index",
                 dataset.slug,
@@ -1686,9 +1935,11 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
+            # stays the final status if the dataset write below doesn't land;
+            # the record is only written once that write has been attempted
             self.status = "dataset_pending"
+            self._ensure_date_finished()
             self.harvest_source.update_job_record_count_by_action(self.action)
-            self.update_self_in_db()
 
             if self.action in ("create", "update") and metadata is not None:
                 dataset_payload = self._dataset_payload(metadata)
@@ -1720,7 +1971,10 @@ class Record:
                             )
                     if dataset:
                         self.status = "success"
-                    self._index_dataset_in_opensearch(dataset)
+                    with self.harvest_source.timings.time(
+                        "record.sync.opensearch_index"
+                    ):
+                        self._index_dataset_in_opensearch(dataset)
                 except EmptyFieldNameException as e:
                     if dataset:
                         self.harvest_source.db_interface.delete_dataset_by_slug(
@@ -1756,7 +2010,10 @@ class Record:
                         "Deleted dataset (slug: %s) - no longer present in source",
                         self.dataset_slug,
                     )
-                    self._delete_dataset_from_opensearch(dataset)
+                    with self.harvest_source.timings.time(
+                        "record.sync.opensearch_delete"
+                    ):
+                        self._delete_dataset_from_opensearch(dataset)
 
             self.update_self_in_db()
 
@@ -1769,10 +2026,29 @@ class Record:
 
         return False
 
-    def update_self_in_db(self) -> bool:
-        # set date_finished if it hasn't been set yet
+    def slug_key(self) -> str:
+        """The slug this record's title would produce, read from the raw
+        source; harvest_records uses it to keep same-slug records in order.
+        Falls back to the identifier when no title can be read."""
+        title = None
+        try:
+            if self.harvest_source.schema_type.startswith("iso19115"):
+                match = ISO_TITLE_PATTERN.search(self.source_raw or "")
+                title = match.group(1) if match else None
+            else:
+                title = json.loads(self.source_raw).get("title")
+        except (ValueError, AttributeError, TypeError):
+            pass
+        if not isinstance(title, str) or not title.strip():
+            return f"identifier:{self.identifier}"
+        return munge_title_to_name(title)
+
+    def _ensure_date_finished(self) -> None:
         if not self._date_finished:
             self._date_finished = get_datetime()
+
+    def update_self_in_db(self) -> bool:
+        self._ensure_date_finished()
 
         data = {
             "status": self.status,
@@ -1888,21 +2164,35 @@ def check_for_more_work():
         emit_idle_transaction_event()
 
 
+def _exit_on_sigterm(signum, frame):
+    # unwind normally so run_full_harvest's finally sends queued counts and
+    # search documents before the task stops (CF sends SIGTERM, then SIGKILL)
+    raise SystemExit(128 + signum)
+
+
 if __name__ == "__main__":
+    import signal
     import sys
 
     from harvester.utils.general_utils import (
         parse_args,
     )
 
+    signal.signal(signal.SIGTERM, _exit_on_sigterm)
     exit_code = 0
+    stopped = False
 
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
+    except SystemExit as e:
+        logger.warning("Harvest stopped by signal")
+        exit_code = e.code
+        stopped = True
     except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
         exit_code = 1
     finally:
-        check_for_more_work()
+        if not stopped:
+            check_for_more_work()
         sys.exit(exit_code)

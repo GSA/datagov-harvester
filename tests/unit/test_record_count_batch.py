@@ -1,18 +1,26 @@
+import threading
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from harvester.harvest import HarvestSource
 from harvester.lib.harvest_reporter import HarvestReporter
+from harvester.lib.harvest_timings import HarvestTimings
 
 
-class TestUnchangedCounterBatch(TestCase):
+class TestRecordCountBatch(TestCase):
     def setUp(self):
         self.source = object.__new__(HarvestSource)
         self.source._job_id = "job-id"
         self.source._reporter = HarvestReporter()
         self.source._db_interface = Mock()
-        self.source._pending_unchanged_count = 0
-        self.source._pending_unchanged_since = None
+        self.source._pending_count = 0
+        self.source._pending_count_since = None
+        self.source.timings = HarvestTimings()
+        self.source._counts_lock = threading.Lock()
+        self.source._opensearch_lock = threading.Lock()
+        self.source._opensearch_queued_since = None
+        self.source._opensearch_documents = []
+        self.source._opensearch_needs_refresh = False
 
     def test_unchanged_records_write_once_per_batch(self):
         with patch("harvester.harvest.time.monotonic", return_value=0):
@@ -39,26 +47,32 @@ class TestUnchangedCounterBatch(TestCase):
         self.source.db_interface.update_harvest_job.assert_called_once()
         self.assertEqual(self.source.reporter.ignored, 2)
 
-    def test_other_action_persists_pending_unchanged_count(self):
+    def test_mixed_actions_share_one_batch(self):
+        actions = ["validated", "create", "warned", "errored", None] * 20
         with patch("harvester.harvest.time.monotonic", return_value=0):
-            self.source.update_job_record_count_by_action(None)
-            self.source.update_job_record_count_by_action("create")
+            for action in actions[:-1]:
+                self.source.update_job_record_count_by_action(action)
+            self.source.db_interface.update_harvest_job.assert_not_called()
+
+            self.source.update_job_record_count_by_action(actions[-1])
 
         self.source.db_interface.update_harvest_job.assert_called_once()
         report = self.source.db_interface.update_harvest_job.call_args.args[1]
-        self.assertEqual(report["records_ignored"], 1)
-        self.assertEqual(report["records_added"], 1)
-        self.assertEqual(self.source._pending_unchanged_count, 0)
+        self.assertEqual(report["records_added"], 20)
+        self.assertEqual(report["records_validated"], 20)
+        self.assertEqual(report["records_errored"], 20)
+        self.assertEqual(report["records_ignored"], 20)
+        self.assertEqual(self.source._pending_count, 0)
 
     def test_final_flush_persists_partial_batch(self):
         with patch("harvester.harvest.time.monotonic", return_value=0):
             self.source.update_job_record_count_by_action(None)
 
-        self.source.flush_pending_unchanged_counts()
-        self.source.flush_pending_unchanged_counts()
+        self.source.flush_pending_counts()
+        self.source.flush_pending_counts()
 
         self.source.db_interface.update_harvest_job.assert_called_once()
-        self.assertEqual(self.source._pending_unchanged_count, 0)
+        self.assertEqual(self.source._pending_count, 0)
 
     def test_harvest_loop_flushes_last_partial_batch(self):
         source = self.source
