@@ -43,7 +43,7 @@ class TestLoadManagerSessionLifecycle:
 
         manager.schedule_next_job("source-id")
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_reschedule_next_run_closes_session(self, manager, mock_interface):
         mock_interface.get_queued_harvest_jobs_for_source.return_value = []
@@ -51,7 +51,7 @@ class TestLoadManagerSessionLifecycle:
 
         manager.reschedule_next_run("source-id")
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_stop_job_closes_session_when_task_already_finished(
         self, manager, mock_interface, finished_task
@@ -60,7 +60,7 @@ class TestLoadManagerSessionLifecycle:
 
         manager.stop_job("job-id")
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_trigger_manual_job_closes_session_when_job_already_active(
         self, manager, mock_interface
@@ -72,7 +72,7 @@ class TestLoadManagerSessionLifecycle:
 
         manager.trigger_manual_job("source-id")
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_start_job_closes_session_when_job_not_startable(
         self, manager, mock_interface
@@ -81,7 +81,7 @@ class TestLoadManagerSessionLifecycle:
 
         manager.start_job("job-id")
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
         manager.handler.start_task.assert_not_called()
 
     def test_start_job_closes_session_after_revert_when_task_fails_to_start(
@@ -106,7 +106,7 @@ class TestLoadManagerSessionLifecycle:
         with pytest.raises(RuntimeError):
             manager.stop_job("job-id")
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_start_closes_session_when_scheduler_raises(self, manager, mock_interface):
         manager.handler.get_running_app_tasks.side_effect = RuntimeError("cf down")
@@ -114,7 +114,7 @@ class TestLoadManagerSessionLifecycle:
         with pytest.raises(RuntimeError):
             manager.start()
 
-        mock_interface.close.assert_called()
+        assert mock_interface.mock_calls[-1] == call.close()
 
     def test_failed_job_email_closes_session_before_sending(
         self, manager, mock_interface
