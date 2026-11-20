@@ -101,6 +101,7 @@ logger = logging.getLogger("harvest_runner")
 RECORD_COUNT_BATCH_SIZE = 100
 RECORD_COUNT_FLUSH_SECONDS = 2
 OPENSEARCH_BATCH_SIZE = 500
+GEO_CACHE_SIZE = 1024
 
 # Harvest source schema_type -> the public validator's schema name, so
 # validator_for returns the same cached validators (record_validator).
@@ -157,6 +158,7 @@ class HarvestSource:
     _pending_count: int = field(default=0, init=False, repr=False)
     _opensearch_documents: list = field(default_factory=list, init=False, repr=False)
     _opensearch_needs_refresh: bool = field(default=False, init=False, repr=False)
+    _geo_cache: dict = field(default_factory=dict, init=False, repr=False)
     _pending_count_since: float | None = field(default=None, init=False, repr=False)
     timings: HarvestTimings = field(
         default_factory=HarvestTimings, init=False, repr=False
@@ -356,6 +358,24 @@ class HarvestSource:
         """Persist the last partial batch when record processing ends."""
         if self._pending_count:
             self._persist_job_record_counts()
+
+    def geo_from_string(self, location_name, literal=False):
+        """db_interface.get_geo_from_string, cached for the job: records
+        repeat the same place names and the locations table doesn't change
+        during a harvest. Failed lookups aren't cached."""
+        key = (location_name, literal)
+        if key in self._geo_cache:
+            return self._geo_cache[key]
+        try:
+            location = self.db_interface.query_geo_from_string(location_name, literal)
+        except Exception as e:
+            logger.error(
+                'Error querying "{}" locations table {}'.format(location_name, e)
+            )
+            return None
+        if len(self._geo_cache) < GEO_CACHE_SIZE:
+            self._geo_cache[key] = location
+        return location
 
     def queue_opensearch_document(self, document: dict) -> None:
         self._opensearch_documents.append(document)
@@ -1299,7 +1319,7 @@ class Record:
         try:
             record_mapping = make_record_mapping(self)
             db_record = self.harvest_source.db_interface.add_harvest_record(
-                record_mapping
+                record_mapping, reload=False
             )
             self.id = db_record.id
         except Exception as e:
@@ -1603,7 +1623,7 @@ class Record:
                 warnings = detect_dcat_warnings(
                     record,
                     partial(
-                        self.harvest_source.db_interface.get_geo_from_string,
+                        self.harvest_source.geo_from_string,
                         literal=True,
                     ),
                 )
@@ -1673,7 +1693,7 @@ class Record:
             spatial_value = munge_spatial(spatial_value)
 
         translated_spatial = translate_spatial_to_geojson(
-            spatial_value, self.harvest_source.db_interface.get_geo_from_string
+            spatial_value, self.harvest_source.geo_from_string
         )
         payload["translated_spatial"] = translated_spatial
         try:
@@ -1780,9 +1800,11 @@ class Record:
                 if not self.dataset_slug:
                     self.dataset_slug = munge_title_to_name(metadata["title"])
 
+            # stays the final status if the dataset write below doesn't land;
+            # the record is only written once that write has been attempted
             self.status = "dataset_pending"
+            self._ensure_date_finished()
             self.harvest_source.update_job_record_count_by_action(self.action)
-            self.update_self_in_db()
 
             if self.action in ("create", "update") and metadata is not None:
                 dataset_payload = self._dataset_payload(metadata)
@@ -1869,10 +1891,12 @@ class Record:
 
         return False
 
-    def update_self_in_db(self) -> bool:
-        # set date_finished if it hasn't been set yet
+    def _ensure_date_finished(self) -> None:
         if not self._date_finished:
             self._date_finished = get_datetime()
+
+    def update_self_in_db(self) -> bool:
+        self._ensure_date_finished()
 
         data = {
             "status": self.status,

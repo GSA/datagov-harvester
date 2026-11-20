@@ -16,6 +16,7 @@ from sqlalchemy import (
     func,
     inspect,
     literal,
+    select,
     text,
     tuple_,
 )
@@ -1149,29 +1150,41 @@ class HarvesterDBInterface:
                 HarvestRecordCurrentIssue.record_type == record_type,
                 HarvestRecordCurrentIssue.identifier == identifier,
             )
-            current_errors = self.db.query(HarvestRecordError).filter_by(
-                harvest_record_id=harvest_record_id
-            )
+            current_errors = select(
+                HarvestRecordError.id,
+                literal(
+                    harvest_source_id, HarvestRecordCurrentIssue.harvest_source_id.type
+                ),
+                literal(record_type, HarvestRecordCurrentIssue.record_type.type),
+                literal(identifier, HarvestRecordCurrentIssue.identifier.type),
+                HarvestRecordError.harvest_record_id,
+                HarvestRecordError.severity,
+                HarvestRecordError.type,
+                HarvestRecordError.date_created,
+            ).where(HarvestRecordError.harvest_record_id == harvest_record_id)
             if skip_types:
                 stale = stale.filter(HarvestRecordCurrentIssue.type.notin_(skip_types))
-                current_errors = current_errors.filter(
+                current_errors = current_errors.where(
                     HarvestRecordError.type.notin_(skip_types)
                 )
             stale.delete(synchronize_session=False)
 
-            for error in current_errors:
-                self.db.add(
-                    HarvestRecordCurrentIssue(
-                        id=error.id,
-                        harvest_source_id=harvest_source_id,
-                        record_type=record_type,
-                        identifier=identifier,
-                        harvest_record_id=error.harvest_record_id,
-                        severity=error.severity,
-                        type=error.type,
-                        date_created=error.date_created,
-                    )
+            # copy rows server-side instead of reading them back first
+            self.db.execute(
+                insert(HarvestRecordCurrentIssue).from_select(
+                    [
+                        "id",
+                        "harvest_source_id",
+                        "record_type",
+                        "identifier",
+                        "harvest_record_id",
+                        "severity",
+                        "type",
+                        "date_created",
+                    ],
+                    current_errors,
                 )
+            )
             self.db.commit()
             return True
         except Exception as e:
@@ -1454,10 +1467,18 @@ class HarvesterDBInterface:
         )
 
     ## HARVEST RECORD
-    def add_harvest_record(self, record_data):
+    def add_harvest_record(self, record_data, reload=True):
+        """Insert a harvest record. reload=False skips re-reading the row
+        after commit; the returned record is detached and only has the
+        values that were passed in plus its id."""
         try:
             new_record = HarvestRecord(**record_data)
             self.db.add(new_record)
+            if not reload:
+                self.db.flush()
+                self.db.expunge(new_record)
+                self.db.commit()
+                return new_record
             self.db.commit()
             self.db.refresh(new_record)
             return new_record
@@ -1466,21 +1487,29 @@ class HarvesterDBInterface:
             self.db.rollback()
             return None
 
-    def update_harvest_record(self, record_id, updates):
+    def update_harvest_record(self, record_id, updates) -> bool:
+        """Update columns on one harvest record with a single UPDATE (no
+        SELECT first). Returns whether a row was updated."""
+        columns = HarvestRecord.__mapper__.column_attrs.keys()
+        values = {}
+        for key, value in updates.items():
+            if key in columns:
+                values[key] = value
+            else:
+                logger.error(f"Non-existing field '{key}' in HarvestRecord")
+        if record_id is None or not values:
+            return False
         try:
-            source = self.db.get(HarvestRecord, record_id)
-            for key, value in updates.items():
-                if hasattr(source, key):
-                    setattr(source, key, value)
-                else:
-                    logger.error(f"Non-existing field '{key}' in HarvestRecord")
-
+            updated = (
+                self.db.query(HarvestRecord)
+                .filter(HarvestRecord.id == record_id)
+                .update(values)
+            )
             self.db.commit()
-            return source
-
-        except NoResultFound:
+        except Exception:
             self.db.rollback()
-            return None
+            raise
+        return updated > 0
 
     def delete_harvest_record(
         self, identifier=None, record_id=None, harvest_source_id=None
@@ -1544,9 +1573,15 @@ class HarvesterDBInterface:
         nested = self.db.begin_nested()
         try:
             dataset = Dataset(**dataset_data)
+            # look up popularity inside the INSERT instead of a query per dataset
+            dataset.popularity = func.coalesce(
+                select(DatasetViewCount.view_count)
+                .where(DatasetViewCount.dataset_slug == slug)
+                .scalar_subquery(),
+                dataset_data["popularity"] if "popularity" in dataset_data else 0,
+            )
             self.db.add(dataset)
             self.db.flush()
-            self._apply_popularity_from_view_count(dataset)
         except Exception as e:
             nested.rollback()
             logger.error("Error inserting dataset '%s': %s", slug, e)
@@ -1912,19 +1947,23 @@ class HarvesterDBInterface:
             )
         ]
 
+    def query_geo_from_string(self, location_name, literal=False):
+        """get_geo_from_string without the error handling: raises on a
+        database error, so callers can tell a failure from "not found"."""
+        if literal:
+            location_name = re.sub(r"([\\%_])", r"\\\1", location_name)
+        return (
+            self.db.query(func.ST_AsGeoJSON(Locations.the_geom))
+            .filter(Locations.display_name.ilike(f"%{location_name}%", escape="\\"))
+            .scalar()
+        )
+
     def get_geo_from_string(self, location_name, literal=False):
         """get a geometry from the locations table using the location name
         (e.g. California, New York). With literal=True, % _ and \\ in the name
         are matched as plain characters instead of ILIKE wildcards."""
-        if literal:
-            location_name = re.sub(r"([\\%_])", r"\\\1", location_name)
         try:
-            location = (
-                self.db.query(func.ST_AsGeoJSON(Locations.the_geom))
-                .filter(Locations.display_name.ilike(f"%{location_name}%", escape="\\"))
-                .scalar()
-            )
-            return location
+            return self.query_geo_from_string(location_name, literal)
         except Exception as e:
             logger.error(
                 'Error querying "{}" locations table {}'.format(location_name, e)

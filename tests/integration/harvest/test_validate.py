@@ -147,13 +147,13 @@ class TestValidateDataset:
 
         with (
             patch.object(
-                harvest_source.db_interface, "get_geo_from_string", return_value=None
+                harvest_source.db_interface, "query_geo_from_string", return_value=None
             ) as lookup,
             patch("harvester.harvest.detect_dcat_warnings", side_effect=call_lookup),
         ):
             test_record.validate()
 
-        lookup.assert_called_once_with("Fair_ax", literal=True)
+        lookup.assert_called_once_with("Fair_ax", True)
 
     def test_validate_dcatus3_0_spatial_temporal(
         self,

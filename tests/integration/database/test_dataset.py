@@ -54,6 +54,33 @@ def test_insert_dataset_sets_popularity_from_view_counts(
     assert dataset.translated_spatial == translated_geojson
 
 
+def test_insert_dataset_without_view_count_keeps_default_popularity(
+    interface,
+    organization_data,
+    source_data_dcatus,
+    job_data_dcatus,
+):
+    record = create_record_for_dataset(
+        interface,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+        identifier="dataset-popularity-none",
+    )
+
+    dataset = interface.insert_dataset(
+        dataset_payload(
+            "dataset-popularity-none",
+            record,
+            organization_data,
+            source_data_dcatus,
+            translated_spatial=None,
+        )
+    )
+
+    assert dataset.popularity == 0
+
+
 def test_upsert_dataset_updates_popularity_from_view_counts(
     interface,
     organization_data,
