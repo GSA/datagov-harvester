@@ -56,6 +56,7 @@ class LoadManager:
                 continue
             source = interface.get_harvest_source(source_id)
             notification_frequency = source.notification_frequency if source else None
+            interface.close()
             frequency_notice = notification_frequency_notice(notification_frequency)
             refresh_url = create_reharvest_url(
                 SMTP_CONFIG["base_url"],
@@ -246,6 +247,7 @@ class LoadManager:
             # closes the scoped_session object
             interface.close()
 
+    @closes_session
     def start(self):
         """Queue and start due harvest jobs from a dedicated runner task."""
         self._clean_old_jobs()

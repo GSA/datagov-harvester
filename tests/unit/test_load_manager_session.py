@@ -93,3 +93,30 @@ class TestLoadManagerSessionLifecycle:
             manager.stop_job("job-id")
 
         mock_interface.close.assert_called()
+
+    def test_start_closes_session_when_scheduler_raises(self, manager, mock_interface):
+        manager.handler.get_running_app_tasks.side_effect = RuntimeError("cf down")
+
+        with pytest.raises(RuntimeError):
+            manager.start()
+
+        mock_interface.close.assert_called()
+
+    def test_failed_job_email_closes_session_before_sending(
+        self, manager, mock_interface
+    ):
+        session_closed_at_send = []
+        config = {"base_url": "https://harvest.test", "recipient": "a@b.gov"}
+
+        with (
+            patch.dict("harvester.lib.load_manager.SMTP_CONFIG", config),
+            patch(
+                "harvester.lib.load_manager.send_email_to_recipients",
+                side_effect=lambda *a, **k: session_closed_at_send.append(
+                    mock_interface.close.called
+                ),
+            ),
+        ):
+            manager._email_recipients_of_failed_jobs([("job-id", "name", "src-id")])
+
+        assert session_closed_at_send == [True]
