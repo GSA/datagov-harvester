@@ -11,11 +11,7 @@ from dcatus_validation.catalog import (
     record_identifier,
     split_dcatus3_catalog,
 )
-from harvester.utils.catalog_stream import (
-    download_json_to_file,
-    index_catalog,
-    iter_materialized,
-)
+from harvester.utils.catalog_stream import CatalogFile, download_json_to_file
 from harvester.utils.general_utils import (
     dataset_to_hash,
     sort_dataset,
@@ -41,6 +37,16 @@ def _write(tmp_path, catalog, prefix=b""):
     path = tmp_path / "catalog.json"
     path.write_bytes(prefix + json.dumps(catalog).encode())
     return str(path)
+
+
+def index_catalog(path, encoding, nested):
+    return CatalogFile(str(path), encoding, nested).index()
+
+
+def iter_materialized(path, encoding, nested, stubs):
+    catalog = CatalogFile(str(path), encoding, nested)
+    catalog.index()
+    return catalog.records(stubs)
 
 
 def _split_streamed(path):
@@ -186,6 +192,71 @@ def test_non_utf8_encoding_is_decoded(tmp_path):
     stubs = index_catalog(str(path), "ISO-8859-1", nested=False)["dataset"]
 
     assert stubs[0]["identifier"] == "é"
+
+
+def test_invalid_utf8_byte_is_replaced_like_requests(tmp_path):
+    path = tmp_path / "catalog.json"
+    path.write_bytes(b'{"dataset": [{"identifier": "a", "title": "caf\xe9"}]}')
+
+    stubs = index_catalog(path, "utf-8", nested=False)["dataset"]
+
+    assert stubs[0]["title"] == "caf\ufffd"
+
+
+def test_unknown_charset_falls_back_to_utf8(tmp_path):
+    path = _write(tmp_path, {"dataset": [{"identifier": "é"}]})
+
+    stubs = index_catalog(path, "not-a-charset", nested=False)["dataset"]
+
+    assert stubs[0]["identifier"] == "é"
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (
+            b'{"dataset": [{"identifier": "a", "n": 123456789012345678901234567890}]}',
+            {"identifier": "a", "n": 123456789012345678901234567890},
+        ),
+        (
+            b'{"dataset": [{"identifier": "a", "s": "\\udc00"}]}',
+            {"identifier": "a", "s": "\udc00"},
+        ),
+    ],
+    ids=["wide-int", "lone-low-surrogate"],
+)
+def test_values_the_fast_parser_rejects_still_harvest(tmp_path, raw, expected):
+    path = tmp_path / "catalog.json"
+    path.write_bytes(raw)
+    catalog = CatalogFile(str(path), "utf-8", nested=False)
+    stubs = catalog.index()["dataset"]
+
+    (record,) = catalog.records(stubs)
+
+    assert record == expected
+
+
+def test_invalid_json_still_raises(tmp_path):
+    path = tmp_path / "catalog.json"
+    path.write_bytes(b'{"dataset": [{"identifier": "a"},]}')
+
+    with pytest.raises(Exception):
+        index_catalog(path, "utf-8", nested=False)
+
+
+def test_harvested_field_names_outside_catalogs_stay_in_metadata(tmp_path):
+    catalog = {
+        "themeTaxonomy": [{"record": [{"@id": "r", "label": "x"}]}],
+        "publisher": {"subOrganizationOf": {"service": [{"title": "s"}]}},
+        "dataset": [{"identifier": "a"}],
+    }
+    path = _write(tmp_path, catalog)
+
+    stub_catalog = index_catalog(path, "utf-8", nested=True)
+
+    assert strip_dcatus3_catalog_objects(stub_catalog) == (
+        strip_dcatus3_catalog_objects(catalog)
+    )
 
 
 def _response(status_code, body=b"{}", encoding=None):

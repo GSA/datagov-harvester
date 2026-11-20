@@ -69,11 +69,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
-from harvester.utils.catalog_stream import (
-    download_json_to_file,
-    index_catalog,
-    iter_materialized,
-)
+from harvester.utils.catalog_stream import CatalogFile, download_json_to_file
 from harvester.utils.env_utils import with_environment_prefix
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
@@ -164,8 +160,7 @@ class HarvestSource:
     deletions: set = field(default_factory=lambda: set(), repr=False)
     # Set for DCAT-US document sources: external_records then hold stubs
     # (see harvester/utils/catalog_stream.py) backed by this downloaded file.
-    _catalog_path: str | None = field(default=None, init=False, repr=False)
-    _catalog_encoding: str | None = field(default=None, init=False, repr=False)
+    _catalog: CatalogFile | None = field(default=None, init=False, repr=False)
     _catalog_cleanup: object = field(default=None, init=False, repr=False)
     _opensearch: object = field(default=None, init=False, repr=False)
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
@@ -706,13 +701,16 @@ class HarvestSource:
         """yield each record in [records], emptying the list as it goes. stubs
         backed by a downloaded catalog are rebuilt into full records from the
         file, in document order."""
-        if self._catalog_path is not None:
-            yield from iter_materialized(
-                self._catalog_path,
-                self._catalog_encoding,
-                self.schema_type == "dcatus3.0",
-                records,
-            )
+        if self._catalog is not None:
+            try:
+                yield from self._catalog.records(records)
+            except Exception as e:
+                # a bad read here can't be pinned to one record, so the
+                # rest of the file is unusable
+                raise ExtractExternalException(
+                    f"{self.name} {self.url} failed reading the downloaded catalog :: {repr(e)}",
+                    self.job_id,
+                )
             return
         records.reverse()
         while records:
@@ -722,14 +720,15 @@ class HarvestSource:
         """download the catalog to a temp file and return it with each
         harvested object replaced by a stub."""
         path, encoding = download_json_to_file(self.url)
-        self._catalog_path = path
-        self._catalog_encoding = encoding
+        self._catalog = CatalogFile(path, encoding, self.schema_type == "dcatus3.0")
         self._catalog_cleanup = weakref.finalize(self, _remove_file, path)
-        return index_catalog(path, encoding, self.schema_type == "dcatus3.0")
+        return self._catalog.index()
 
     def remove_downloaded_catalog(self) -> None:
         if self._catalog_cleanup is not None:
             self._catalog_cleanup()
+        self._catalog = None
+        self._catalog_cleanup = None
 
     def acquire_minimum_external_data(self) -> list:
         """
@@ -1885,14 +1884,17 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.run_full_harvest()
 
     if job_type == "validate":
-        harvest_source.acquire_minimum_external_data()
-        for record in harvest_source.external_records_to_process():
-            if harvest_source.schema_type.startswith("iso19115"):
-                record.transform()
-            try:
-                record.validate()
-            except:  # noqa: E722
-                pass
+        try:
+            harvest_source.acquire_minimum_external_data()
+            for record in harvest_source.external_records_to_process():
+                if harvest_source.schema_type.startswith("iso19115"):
+                    record.transform()
+                try:
+                    record.validate()
+                except:  # noqa: E722
+                    pass
+        finally:
+            harvest_source.remove_downloaded_catalog()
 
     # generate harvest job report
     harvest_source.report()

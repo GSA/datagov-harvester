@@ -1,9 +1,9 @@
 """Stream a DCAT-US JSON catalog from disk instead of holding it in memory.
 
-A catalog is read twice. index_catalog() returns the catalog with every
+A catalog is read twice. CatalogFile.index() returns the catalog with every
 harvested object replaced by a small stub that keeps only the fields the
 identifier filters, duplicate checks, deletion diff, and DCAT-US 3.0 split
-read, so that existing logic runs on stubs unchanged. iter_materialized()
+read, so that existing logic runs on stubs unchanged. CatalogFile.records()
 streams the file again and rebuilds the full record for each surviving stub.
 """
 
@@ -44,9 +44,9 @@ _NOT_OVERLAID = {LOC_KEY} | {
 
 
 def download_json_to_file(url: str) -> tuple[str, str]:
-    """Download url to a temp file and return (path, encoding), choosing the
-    encoding the same way requests' Response.json() does so record hashes
-    match the old in-memory path."""
+    """Download url to a temp file and return (path, encoding). The encoding
+    is picked like requests' Response.json(): the charset the server sent,
+    else a guess from the first bytes."""
     resp = requests.get(url, headers={"User-Agent": USER_AGENT}, stream=True)
     try:
         if not 200 <= resp.status_code < 300:
@@ -68,21 +68,21 @@ def download_json_to_file(url: str) -> tuple[str, str]:
     return path, encoding
 
 
-def _open(path: str, encoding: str):
-    normalized = codecs.lookup(encoding).name
-    if normalized in ("utf-8", "utf-8-sig"):
-        f = open(path, "rb")
-        if f.read(3) != codecs.BOM_UTF8:
-            f.seek(0)
-        return f
-    return _Utf8Reader(open(path, "r", encoding=encoding))
+def _usable_encoding(encoding: str) -> str:
+    # requests falls back to UTF-8 when the server names an unknown charset
+    try:
+        name = codecs.lookup(encoding).name
+    except LookupError:
+        return "utf-8"
+    return "utf-8-sig" if name == "utf-8" else name
 
 
 class _Utf8Reader:
-    """ijson wants bytes; re-encode a text file to UTF-8 as it is read."""
+    """Decode the file like requests' Response.text (undecodable bytes become
+    U+FFFD) and hand ijson UTF-8 bytes."""
 
-    def __init__(self, f):
-        self._f = f
+    def __init__(self, path: str, encoding: str):
+        self._f = open(path, "r", encoding=_usable_encoding(encoding), errors="replace")
 
     def read(self, size=-1) -> bytes:
         return self._f.read(size).encode("utf-8")
@@ -94,7 +94,13 @@ class _Utf8Reader:
         self._f.close()
 
 
-def _walk(path, encoding, nested, skeleton=None, stub_for=None):
+# The C backend rejects integers wider than 64 bits and some escapes that
+# json.loads accepts; the pure-Python backend handles them, more slowly.
+_FAST_BACKEND = ijson.get_backend("yajl2_c")
+_SAFE_BACKEND = ijson.get_backend("python")
+
+
+def _walk(path, encoding, nested, backend, skeleton=None, stub_for=None):
     """Yield (ordinal, field, obj) for each harvested object, numbered in
     document order. When skeleton is given, every other parse event is fed to
     it and stub_for(ordinal, field, obj) takes each object's place.
@@ -114,8 +120,8 @@ def _walk(path, encoding, nested, skeleton=None, stub_for=None):
     depth = 0
     field = None
 
-    with _open(path, encoding) as f:
-        for event, value in ijson.basic_parse(f, use_float=True):
+    with _Utf8Reader(path, encoding) as f:
+        for event, value in backend.basic_parse(f, use_float=True):
             if builder is not None:
                 builder.event(event, value)
                 if event in ("start_map", "start_array"):
@@ -145,7 +151,8 @@ def _walk(path, encoding, nested, skeleton=None, stub_for=None):
             if event == "map_key":
                 keys[-1] = value
             elif event == "start_map":
-                stack.append("catalog" if parent in (None, "catalogs") else None)
+                is_catalog = not stack or parent == "catalogs"
+                stack.append("catalog" if is_catalog else None)
                 keys.append(None)
             elif event == "start_array":
                 kind = None
@@ -188,15 +195,6 @@ def _stub_with_nested(ordinal, field, obj):
     return stub
 
 
-def index_catalog(path: str, encoding: str, nested: bool) -> dict:
-    """Parse the catalog once and return it with each harvested object
-    replaced by a stub."""
-    skeleton = ObjectBuilder()
-    for _ in _walk(path, encoding, nested, skeleton, _stub_with_nested):
-        pass
-    return skeleton.value
-
-
 def _source_object(obj, loc):
     _, nested_field, index = loc
     if nested_field is None:
@@ -216,16 +214,47 @@ def materialize(stub: dict, source: dict) -> dict:
     return record
 
 
-def iter_materialized(path: str, encoding: str, nested: bool, stubs: list):
-    """Yield the full record for each stub, in document order. stubs is
-    emptied up front so each stub is released once its record is built."""
-    wanted = {}
-    for stub in stubs:
-        wanted.setdefault(stub[LOC_KEY][0], []).append(stub)
-    stubs.clear()
+class CatalogFile:
+    """A downloaded catalog on disk. nested=True for DCAT-US 3.0, which
+    harvests several record types and follows sub-catalogs."""
 
-    for ordinal, _, obj in _walk(path, encoding, nested):
-        if not wanted:
-            return
-        for stub in wanted.pop(ordinal, ()):
-            yield materialize(stub, _source_object(obj, stub[LOC_KEY]))
+    def __init__(self, path: str, encoding: str, nested: bool):
+        self.path = path
+        self.encoding = encoding
+        self.nested = nested
+        self._backend = _FAST_BACKEND
+
+    def _walk(self, **kwargs):
+        return _walk(self.path, self.encoding, self.nested, self._backend, **kwargs)
+
+    def index(self) -> dict:
+        """Parse the catalog and return it with each harvested object
+        replaced by a stub."""
+        try:
+            return self._index()
+        except (ijson.JSONError, UnicodeDecodeError):
+            if self._backend is _SAFE_BACKEND:
+                raise
+            # later reads must use the same backend so ordinals line up
+            self._backend = _SAFE_BACKEND
+            return self._index()
+
+    def _index(self) -> dict:
+        skeleton = ObjectBuilder()
+        for _ in self._walk(skeleton=skeleton, stub_for=_stub_with_nested):
+            pass
+        return skeleton.value
+
+    def records(self, stubs: list):
+        """Yield the full record for each stub, in document order. stubs is
+        emptied up front so each stub is released once its record is built."""
+        wanted = {}
+        for stub in stubs:
+            wanted.setdefault(stub[LOC_KEY][0], []).append(stub)
+        stubs.clear()
+
+        for ordinal, _, obj in self._walk():
+            if not wanted:
+                return
+            for stub in wanted.pop(ordinal, ()):
+                yield materialize(stub, _source_object(obj, stub[LOC_KEY]))
