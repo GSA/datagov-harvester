@@ -3,22 +3,28 @@ import time
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from harvester.harvest import HarvestSource
+from dcatus_validation.catalog import munge_title_to_name
+from harvester.harvest import HarvestSource, Record
 from harvester.lib.harvest_timings import HarvestTimings
 
 
 class FakeRecord:
-    def __init__(self, n, log, tracker=None, error=None):
+    def __init__(self, n, log, tracker=None, error=None, key=None, delay=0.01):
         self.n = n
         self.log = log
         self.tracker = tracker
         self.error = error
+        self.key = key if key is not None else f"record-{n}"
+        self.delay = delay
+
+    def slug_key(self):
+        return self.key
 
     def harvest(self):
         if self.tracker:
             self.tracker.enter()
         try:
-            time.sleep(0.01)
+            time.sleep(self.delay)
             if self.error:
                 raise self.error
             self.log.append((self.n, threading.current_thread().name))
@@ -101,6 +107,22 @@ class TestHarvestRecordWorkers(TestCase):
         with self.patch_workers("2"), self.assertRaises(ValueError):
             self.source.harvest_records(iter(records))
 
+    def test_same_slug_records_keep_catalog_order(self):
+        # the first of each title is the slowest; it must still finish first
+        records = [
+            FakeRecord(n, self.log, key=f"title-{n % 3}", delay=0.05 if n < 3 else 0)
+            for n in range(12)
+        ]
+
+        with self.patch_workers("4"):
+            self.source.harvest_records(iter(records))
+
+        for title in range(3):
+            order = [n for n, _ in self.log if n % 3 == title]
+            self.assertEqual(order, sorted(order))
+            threads = {name for n, name in self.log if n % 3 == title}
+            self.assertEqual(len(threads), 1)
+
     def test_stopping_cancels_records_not_started(self):
         started = []
 
@@ -121,3 +143,32 @@ class TestHarvestRecordWorkers(TestCase):
 
     def patch_workers(self, value):
         return patch.dict("os.environ", {"HARVEST_RECORD_WORKERS": value})
+
+
+class TestSlugKey(TestCase):
+    def record(self, schema_type, source_raw, identifier="id-1"):
+        source = Mock()
+        source.schema_type = schema_type
+        return Record(source, identifier, source_raw)
+
+    def test_dcatus_title(self):
+        record = self.record("dcatus3.0", '{"title": "Water Quality 2024"}')
+        self.assertEqual(record.slug_key(), munge_title_to_name("Water Quality 2024"))
+
+    def test_iso_title_from_xml(self):
+        xml = (
+            "<gmd:title>\n  <gco:CharacterString>Coastal Wetlands"
+            "</gco:CharacterString></gmd:title>"
+        )
+        record = self.record("iso19115_2", xml)
+        self.assertEqual(record.slug_key(), munge_title_to_name("Coastal Wetlands"))
+
+    def test_same_slug_titles_share_a_key(self):
+        a = self.record("dcatus3.0", '{"title": "Water Quality"}', "a")
+        b = self.record("dcatus3.0", '{"title": "water  quality"}', "b")
+        self.assertEqual(a.slug_key(), b.slug_key())
+
+    def test_no_title_falls_back_to_identifier(self):
+        for raw in [None, "not json", '{"description": "x"}', '{"title": ""}']:
+            record = self.record("dcatus3.0", raw, "the-id")
+            self.assertEqual(record.slug_key(), "identifier:the-id", raw)
