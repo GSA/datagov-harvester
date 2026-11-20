@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from jinja2 import FileSystemLoader
 from opensearchpy.exceptions import NotFoundError
-from sqlalchemy import event, text
+from sqlalchemy import text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import create_app
@@ -191,14 +191,9 @@ def interface(session) -> HarvesterDBInterface:
 
 @pytest.fixture()
 def load_manager_interface(session) -> Generator[Any, HarvesterDBInterface, Any]:
-    # Mirrors production: the load manager owns its session, so closing it
-    # doesn't detach objects held by the other components' session. The test
-    # session outlives a request, so expire it to see the load manager's writes.
-    load_manager_session_factory = sessionmaker(bind=session.bind, autoflush=True)
-    event.listen(
-        load_manager_session_factory, "after_commit", lambda _: session.expire_all()
+    load_manager_session = scoped_session(
+        sessionmaker(bind=session.bind, autoflush=True)
     )
-    load_manager_session = scoped_session(load_manager_session_factory)
     yield HarvesterDBInterface(session=load_manager_session)
     load_manager_session.remove()
 
