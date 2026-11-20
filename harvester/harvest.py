@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import time
+import weakref
 from dataclasses import dataclass, field
 from functools import partial
 from itertools import chain
@@ -68,6 +69,7 @@ from harvester.exceptions import (
 from harvester.lib.harvest_reporter import HarvestReporter
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
+from harvester.utils.catalog_stream import CatalogFile, download_json_to_file
 from harvester.utils.env_utils import with_environment_prefix
 from harvester.utils.general_utils import (
     DT_PLACEHOLDER,
@@ -111,6 +113,13 @@ VALIDATOR_SCHEMA_NAMES = {
 harvest_worker_sync_count = int(os.getenv("HARVEST_WORKER_SYNC_COUNT", 1))
 
 
+def _remove_file(path: str) -> None:
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
 @dataclass
 class HarvestSource:
     """Class for Harvest Sources"""
@@ -149,6 +158,10 @@ class HarvestSource:
     internal_records: dict = field(default_factory=lambda: {}, repr=False)
 
     deletions: set = field(default_factory=lambda: set(), repr=False)
+    # Set for DCAT-US document sources: external_records then hold stubs
+    # (see harvester/utils/catalog_stream.py) backed by this downloaded file.
+    _catalog: CatalogFile | None = field(default=None, init=False, repr=False)
+    _catalog_cleanup: object = field(default=None, init=False, repr=False)
     _opensearch: object = field(default=None, init=False, repr=False)
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
     _pending_unchanged_count: int = field(default=0, init=False, repr=False)
@@ -355,7 +368,7 @@ class HarvestSource:
         converts the list of db records into Record instances and stores them
         in self.internal_records
 
-        records: list of internal db harvest record dicts
+        records: iterable of internal db harvest record dicts
         """
         for record in records:
             record_type = record["record_type"]
@@ -603,9 +616,8 @@ class HarvestSource:
         Dataset records before any non-dataset (DataService, CatalogRecord,
         ...) records.
         """
-        while len(self.external_records) > 0:
+        for record in self._drain_external_records(self.external_records):
             try:
-                record = self.external_records.pop(0)
                 parent_identifier = None
                 if self.source_type == "waf":
                     record["content"] = download_file(record["identifier"], ".xml")
@@ -641,8 +653,6 @@ class HarvestSource:
                     dataset_hash,
                     _parent_identifier=parent_identifier,
                 )
-
-                del record
             except Exception as e:
                 self.update_job_record_count_by_action("errored")
 
@@ -658,9 +668,8 @@ class HarvestSource:
         for record_type, config in DCATUS3_NON_DATASET_RECORD_TYPES.items():
             records = self.external_records_by_type.get(record_type, [])
             identifier_field = config["identifier_field"]
-            while len(records) > 0:
+            for record in self._drain_external_records(records):
                 try:
-                    record = records.pop(0)
                     resolved_identifier = record.pop(RESOLVED_IDENTIFIER_KEY, None)
                     serialized = json.dumps(sort_dataset(record))
                     record_hash = dataset_to_hash(serialized)
@@ -675,8 +684,6 @@ class HarvestSource:
                         record_hash,
                         _record_type=record_type,
                     )
-
-                    del record
                 except Exception as e:
                     self.update_job_record_count_by_action("errored")
 
@@ -689,6 +696,39 @@ class HarvestSource:
                         self.job_id,
                         None,  # there is no record id to associate
                     )
+
+    def _drain_external_records(self, records: list):
+        """yield each record in [records], emptying the list as it goes. stubs
+        backed by a downloaded catalog are rebuilt into full records from the
+        file, in document order."""
+        if self._catalog is not None:
+            try:
+                yield from self._catalog.records(records)
+            except Exception as e:
+                # a bad read here can't be pinned to one record, so the
+                # rest of the file is unusable
+                raise ExtractExternalException(
+                    f"{self.name} {self.url} failed reading the downloaded catalog :: {repr(e)}",
+                    self.job_id,
+                )
+            return
+        records.reverse()
+        while records:
+            yield records.pop()
+
+    def _index_downloaded_catalog(self) -> dict:
+        """download the catalog to a temp file and return it with each
+        harvested object replaced by a stub."""
+        path, encoding = download_json_to_file(self.url)
+        self._catalog = CatalogFile(path, encoding, self.schema_type == "dcatus3.0")
+        self._catalog_cleanup = weakref.finalize(self, _remove_file, path)
+        return self._catalog.index()
+
+    def remove_downloaded_catalog(self) -> None:
+        if self._catalog_cleanup is not None:
+            self._catalog_cleanup()
+        self._catalog = None
+        self._catalog_cleanup = None
 
     def acquire_minimum_external_data(self) -> list:
         """
@@ -703,7 +743,7 @@ class HarvestSource:
         try:
             if self.source_type == "document":
                 if self.schema_type.startswith("dcatus"):
-                    catalog = download_file(self.url, ".json")
+                    catalog = self._index_downloaded_catalog()
 
                     if self.schema_type == "dcatus3.0":
                         (
@@ -764,7 +804,7 @@ class HarvestSource:
         """
         logger.info("retrieving and preparing internal records.")
         try:
-            records = self.db_interface.get_latest_harvest_records_by_source(self.id)
+            records = self.db_interface.iter_latest_harvest_records_by_source(self.id)
             self.store_records_as_internal(records)
         except Exception as e:
             # ruff: noqa: E501
@@ -816,6 +856,7 @@ class HarvestSource:
         finally:
             # A harvest may end before the count or time threshold is reached.
             self.flush_pending_unchanged_counts()
+            self.remove_downloaded_catalog()
 
     def finish_job_with_status(self, status: str):
         """
@@ -1843,14 +1884,17 @@ def harvest_job_starter(job_id, job_type="harvest"):
         harvest_source.run_full_harvest()
 
     if job_type == "validate":
-        harvest_source.acquire_minimum_external_data()
-        for record in harvest_source.external_records_to_process():
-            if harvest_source.schema_type.startswith("iso19115"):
-                record.transform()
-            try:
-                record.validate()
-            except:  # noqa: E722
-                pass
+        try:
+            harvest_source.acquire_minimum_external_data()
+            for record in harvest_source.external_records_to_process():
+                if harvest_source.schema_type.startswith("iso19115"):
+                    record.transform()
+                try:
+                    record.validate()
+                except:  # noqa: E722
+                    pass
+        finally:
+            harvest_source.remove_downloaded_catalog()
 
     # generate harvest job report
     harvest_source.report()
