@@ -47,6 +47,9 @@ class TestHarvestRecordWorkers(TestCase):
     def setUp(self):
         self.source = object.__new__(HarvestSource)
         self.source.timings = HarvestTimings()
+        self.source._opensearch_lock = threading.Lock()
+        self.source._opensearch_documents = []
+        self.source._opensearch_queued_since = None
         self.source._db_interface = Mock()
         self.source._opensearch = None
         self.source._opensearch_initialized = True
@@ -97,6 +100,24 @@ class TestHarvestRecordWorkers(TestCase):
 
         with self.patch_workers("2"), self.assertRaises(ValueError):
             self.source.harvest_records(iter(records))
+
+    def test_stopping_cancels_records_not_started(self):
+        started = []
+
+        class Stop(FakeRecord):
+            def harvest(self):
+                started.append(self.n)
+                time.sleep(0.05)
+
+        def records():
+            for n in range(4):
+                yield Stop(n, self.log)
+            raise SystemExit(143)
+
+        with self.patch_workers("2"), self.assertRaises(SystemExit):
+            self.source.harvest_records(records())
+
+        self.assertLess(len(started), 4)
 
     def patch_workers(self, value):
         return patch.dict("os.environ", {"HARVEST_RECORD_WORKERS": value})

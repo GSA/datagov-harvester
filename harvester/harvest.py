@@ -101,7 +101,9 @@ logger = logging.getLogger("harvest_runner")
 
 RECORD_COUNT_BATCH_SIZE = 100
 RECORD_COUNT_FLUSH_SECONDS = 2
-OPENSEARCH_BATCH_SIZE = 500
+OPENSEARCH_BATCH_SIZE = 100
+# a queued document waits at most this long; see queue_opensearch_document
+OPENSEARCH_FLUSH_SECONDS = 2
 GEO_CACHE_SIZE = 1024
 
 # Harvest source schema_type -> the public validator's schema name, so
@@ -159,6 +161,7 @@ class HarvestSource:
     _pending_count: int = field(default=0, init=False, repr=False)
     _opensearch_documents: list = field(default_factory=list, init=False, repr=False)
     _opensearch_needs_refresh: bool = field(default=False, init=False, repr=False)
+    _opensearch_queued_since: float | None = field(default=None, init=False, repr=False)
     _geo_cache: dict = field(default_factory=dict, init=False, repr=False)
     # guard state that record workers share (see harvest_records)
     _counts_lock: threading.Lock = field(
@@ -388,17 +391,46 @@ class HarvestSource:
         return location
 
     def queue_opensearch_document(self, document: dict) -> None:
+        """Queue a document for the next bulk index.
+
+        A record is already committed as successful when its document is
+        queued, and a later harvest won't re-index an unchanged record, so
+        queued documents are sent within OPENSEARCH_FLUSH_SECONDS (see
+        flush_opensearch_documents_if_due) to keep what a killed task can
+        lose small.
+        """
         with self._opensearch_lock:
             self._opensearch_documents.append(document)
-            if len(self._opensearch_documents) < OPENSEARCH_BATCH_SIZE:
+            if self._opensearch_queued_since is None:
+                self._opensearch_queued_since = time.monotonic()
+            if not self._opensearch_flush_due():
                 return
-            documents, self._opensearch_documents = self._opensearch_documents, []
+            documents = self._take_opensearch_documents()
+        self._index_opensearch_documents(documents)
+
+    def flush_opensearch_documents_if_due(self) -> None:
+        with self._opensearch_lock:
+            if not self._opensearch_flush_due():
+                return
+            documents = self._take_opensearch_documents()
         self._index_opensearch_documents(documents)
 
     def flush_opensearch_documents(self) -> None:
         with self._opensearch_lock:
-            documents, self._opensearch_documents = self._opensearch_documents, []
+            documents = self._take_opensearch_documents()
         self._index_opensearch_documents(documents)
+
+    def _opensearch_flush_due(self) -> bool:
+        return bool(self._opensearch_documents) and (
+            len(self._opensearch_documents) >= OPENSEARCH_BATCH_SIZE
+            or time.monotonic() - self._opensearch_queued_since
+            >= OPENSEARCH_FLUSH_SECONDS
+        )
+
+    def _take_opensearch_documents(self) -> list:
+        documents, self._opensearch_documents = self._opensearch_documents, []
+        self._opensearch_queued_since = None
+        return documents
 
     def _index_opensearch_documents(self, documents: list) -> None:
         """Bulk index documents without refreshing the index; a refresh per
@@ -944,6 +976,11 @@ class HarvestSource:
                         for future in done:
                             future.result()
                     in_flight.add(pool.submit(self._harvest_record_in_worker, record))
+            except BaseException:
+                # stopping (an error or SIGTERM): skip records not started yet
+                for future in in_flight:
+                    future.cancel()
+                raise
             finally:
                 done, _ = wait(in_flight)
             for future in done:
@@ -952,6 +989,7 @@ class HarvestSource:
     def _harvest_record(self, record) -> None:
         with self.timings.time("record"):
             record.harvest()
+        self.flush_opensearch_documents_if_due()
 
     def _harvest_record_in_worker(self, record) -> None:
         try:
@@ -2084,21 +2122,35 @@ def check_for_more_work():
         emit_idle_transaction_event()
 
 
+def _exit_on_sigterm(signum, frame):
+    # unwind normally so run_full_harvest's finally sends queued counts and
+    # search documents before the task stops (CF sends SIGTERM, then SIGKILL)
+    raise SystemExit(128 + signum)
+
+
 if __name__ == "__main__":
+    import signal
     import sys
 
     from harvester.utils.general_utils import (
         parse_args,
     )
 
+    signal.signal(signal.SIGTERM, _exit_on_sigterm)
     exit_code = 0
+    stopped = False
 
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
+    except SystemExit as e:
+        logger.warning("Harvest stopped by signal")
+        exit_code = e.code
+        stopped = True
     except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
         exit_code = 1
     finally:
-        check_for_more_work()
+        if not stopped:
+            check_for_more_work()
         sys.exit(exit_code)
