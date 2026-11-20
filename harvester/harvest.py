@@ -66,6 +66,7 @@ from harvester.exceptions import (
     log_non_critical_error,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
+from harvester.lib.harvest_timings import HarvestTimings
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.env_utils import with_environment_prefix
@@ -153,6 +154,9 @@ class HarvestSource:
     _opensearch_initialized: bool = field(default=False, init=False, repr=False)
     _pending_unchanged_count: int = field(default=0, init=False, repr=False)
     _pending_unchanged_since: float | None = field(default=None, init=False, repr=False)
+    timings: HarvestTimings = field(
+        default_factory=HarvestTimings, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
@@ -337,7 +341,8 @@ class HarvestSource:
 
     def _persist_job_record_counts(self) -> None:
         """persist the current counts to the database and reset the pending unchanged count."""
-        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+        with self.timings.time("job_counts"):
+            self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
         self._pending_unchanged_count = 0
         self._pending_unchanged_since = None
 
@@ -608,11 +613,13 @@ class HarvestSource:
                 record = self.external_records.pop(0)
                 parent_identifier = None
                 if self.source_type == "waf":
-                    record["content"] = download_file(record["identifier"], ".xml")
+                    with self.timings.time("download_xml"):
+                        record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
 
                 elif self.source_type == "waf-collection":
-                    record["content"] = download_file(record["identifier"], ".xml")
+                    with self.timings.time("download_xml"):
+                        record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
                     # the collection root has no parent of its own
                     if record["identifier"] != self.collection_parent_url:
@@ -775,7 +782,8 @@ class HarvestSource:
 
     def run_full_harvest(self) -> None:
         try:
-            self.acquire_data_sources()
+            with self.timings.time("acquire_data_sources"):
+                self.acquire_data_sources()
 
             self.filter_datasets_with_no_identifier()
 
@@ -807,7 +815,8 @@ class HarvestSource:
             records = chain(internal_records_to_delete, external_records_to_process)
 
             for record in records:
-                record.harvest()
+                with self.timings.time("record"):
+                    record.harvest()
                 del record
 
         except (ExtractInternalException, ExtractExternalException):
@@ -816,6 +825,7 @@ class HarvestSource:
         finally:
             # A harvest may end before the count or time threshold is reached.
             self.flush_pending_unchanged_counts()
+            logger.info("harvest timings: %s", self.timings.summary())
 
     def finish_job_with_status(self, status: str):
         """
@@ -1172,19 +1182,25 @@ class Record:
                     self.harvest_source.id, self.record_type, self.identifier
                 )
                 return
-            self.compare()
+            timings = self.harvest_source.timings
+            with timings.time("record.compare"):
+                self.compare()
             if self.action is None:
                 return
             if self.harvest_source.schema_type.startswith("iso19115"):
-                self.transform()
-                self.add_parent()
-                self.replace_identifier()
-                self.fill_placeholders()
-                self.improve_distributions()
-                self._save_transformed_data()
-            self.validate()
-            self.sync_current_issues()
-            self.sync()
+                with timings.time("record.transform"):
+                    self.transform()
+                    self.add_parent()
+                    self.replace_identifier()
+                    self.fill_placeholders()
+                    self.improve_distributions()
+                    self._save_transformed_data()
+            with timings.time("record.validate"):
+                self.validate()
+            with timings.time("record.sync_current_issues"):
+                self.sync_current_issues()
+            with timings.time("record.sync"):
+                self.sync()
         except (
             CompareException,
             TransformationException,
@@ -1489,11 +1505,12 @@ class Record:
         valid = True
 
         validator = self.harvest_source.validator_for(self.record_type)
-        errors = validator.iter_errors(record)
-        errors = assemble_validation_errors(errors)
-        for error in errors:
-            valid = False
-            self._report_error(error)
+        with self.harvest_source.timings.time("record.validate.schema"):
+            errors = list(assemble_validation_errors(validator.iter_errors(record)))
+        with self.harvest_source.timings.time("record.validate.report_errors"):
+            for error in errors:
+                valid = False
+                self._report_error(error)
 
         # DCAT-US 3 content-quality warnings are detected regardless of schema
         # validity and never change the record's status. A record can be both
@@ -1501,15 +1518,17 @@ class Record:
         if self.harvest_source.schema_type == "dcatus3.0":
             # Matched literally, as the public validator does (it can't afford
             # wildcard matching); real place names never contain % _ or \.
-            warnings = detect_dcat_warnings(
-                record,
-                partial(
-                    self.harvest_source.db_interface.get_geo_from_string,
-                    literal=True,
-                ),
-            )
-            for warning in warnings:
-                self._report_warning(warning)
+            with self.harvest_source.timings.time("record.validate.detect_warnings"):
+                warnings = detect_dcat_warnings(
+                    record,
+                    partial(
+                        self.harvest_source.db_interface.get_geo_from_string,
+                        literal=True,
+                    ),
+                )
+            with self.harvest_source.timings.time("record.validate.report_warnings"):
+                for warning in warnings:
+                    self._report_warning(warning)
             if warnings:
                 self.harvest_source.update_job_record_count_by_action("warned")
 
@@ -1720,7 +1739,10 @@ class Record:
                             )
                     if dataset:
                         self.status = "success"
-                    self._index_dataset_in_opensearch(dataset)
+                    with self.harvest_source.timings.time(
+                        "record.sync.opensearch_index"
+                    ):
+                        self._index_dataset_in_opensearch(dataset)
                 except EmptyFieldNameException as e:
                     if dataset:
                         self.harvest_source.db_interface.delete_dataset_by_slug(
@@ -1756,7 +1778,10 @@ class Record:
                         "Deleted dataset (slug: %s) - no longer present in source",
                         self.dataset_slug,
                     )
-                    self._delete_dataset_from_opensearch(dataset)
+                    with self.harvest_source.timings.time(
+                        "record.sync.opensearch_delete"
+                    ):
+                        self._delete_dataset_from_opensearch(dataset)
 
             self.update_self_in_db()
 
