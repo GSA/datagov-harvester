@@ -105,10 +105,23 @@ OPENSEARCH_BATCH_SIZE = 100
 # a queued document waits at most this long; see queue_opensearch_document
 OPENSEARCH_FLUSH_SECONDS = 2
 GEO_CACHE_SIZE = 1024
+MAX_RECORD_WORKERS = 16
 # first citation title in an ISO 19115 document, before MDTranslator runs
 ISO_TITLE_PATTERN = re.compile(
     r"<gmd:title>\s*<gco:CharacterString>([^<]*)</gco:CharacterString>"
 )
+
+
+def record_worker_count() -> int:
+    """HARVEST_RECORD_WORKERS as an int in 1..MAX_RECORD_WORKERS; a bad value
+    falls back to 1 rather than failing the job."""
+    value = os.getenv("HARVEST_RECORD_WORKERS", "1")
+    try:
+        workers = int(value)
+    except ValueError:
+        logger.warning("Ignoring HARVEST_RECORD_WORKERS=%r; using 1", value)
+        return 1
+    return min(max(workers, 1), MAX_RECORD_WORKERS)
 
 
 # Harvest source schema_type -> the public validator's schema name, so
@@ -960,7 +973,7 @@ class HarvestSource:
         MDTranslator, so a few threads overlap that waiting. With one worker
         records run in order on this thread, as before.
         """
-        workers = max(1, int(os.getenv("HARVEST_RECORD_WORKERS", "1")))
+        workers = record_worker_count()
         if workers == 1:
             for record in records:
                 self._harvest_record(record)

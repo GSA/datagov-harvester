@@ -4,7 +4,7 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from dcatus_validation.catalog import munge_title_to_name
-from harvester.harvest import HarvestSource, Record
+from harvester.harvest import HarvestSource, Record, record_worker_count
 from harvester.lib.harvest_timings import HarvestTimings
 
 
@@ -143,6 +143,19 @@ class TestHarvestRecordWorkers(TestCase):
 
     def patch_workers(self, value):
         return patch.dict("os.environ", {"HARVEST_RECORD_WORKERS": value})
+
+
+class TestRecordWorkerCount(TestCase):
+    def test_parses_and_bounds_the_setting(self):
+        cases = {"4": 4, "0": 1, "-3": 1, "99": 16, " 2 ": 2}
+        for value, expected in cases.items():
+            with patch.dict("os.environ", {"HARVEST_RECORD_WORKERS": value}):
+                self.assertEqual(record_worker_count(), expected, value)
+
+    def test_bad_value_falls_back_to_one(self):
+        with patch.dict("os.environ", {"HARVEST_RECORD_WORKERS": "four"}):
+            with self.assertLogs("harvest_runner", level="WARNING"):
+                self.assertEqual(record_worker_count(), 1)
 
 
 class TestSlugKey(TestCase):
