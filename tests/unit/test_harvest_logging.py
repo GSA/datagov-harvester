@@ -2,6 +2,7 @@ import logging
 from unittest.mock import Mock, patch
 
 from harvester.harvest import Record
+from harvester.lib.harvest_timings import HarvestTimings
 
 
 class TestValidationLogging:
@@ -15,6 +16,7 @@ class TestValidationLogging:
             record.transformed_data = {"title": "Test", "identifier": "test-id"}
             record.source_raw = None
             record.harvest_source = Mock()
+            record.harvest_source.timings = HarvestTimings()
             record.harvest_source.schema_type = "dcatus1.1: federal"
             record.harvest_source.validator_for = Mock(
                 return_value=Mock(iter_errors=Mock(return_value=[]))
@@ -34,6 +36,7 @@ class TestValidationLogging:
             record.transformed_data = {"title": "Test", "identifier": "test-id"}
             record.source_raw = None
             record.harvest_source = Mock()
+            record.harvest_source.timings = HarvestTimings()
             record.harvest_source.schema_type = "dcatus1.1: federal"
             record.harvest_source.validator_for = Mock(
                 return_value=Mock(iter_errors=Mock(return_value=[]))
@@ -55,6 +58,7 @@ class TestValidationLogging:
             record.transformed_data = {"title": "Test"}
             record.source_raw = None
             record.harvest_source = Mock()
+            record.harvest_source.timings = HarvestTimings()
             record.harvest_source.schema_type = "dcatus1.1: federal"
 
             mock_errors = [Mock(), Mock(), Mock()]
@@ -87,6 +91,7 @@ class TestDatasetCreationLogging:
             record.status = "dataset_pending"
             record.dataset_slug = "test-dataset"
             record.harvest_source = Mock()
+            record.harvest_source.timings = HarvestTimings()
 
             mock_dataset = Mock()
             mock_dataset.slug = "test-dataset"
