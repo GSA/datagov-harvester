@@ -96,6 +96,18 @@ def create_app():
         # Every validation answer is specific to the submitted document.
         if request.method not in {"GET", "HEAD"} or response.status_code >= 400:
             response.headers["Cache-Control"] = "private, no-store, max-age=0"
+
+        # Allow cross-origin requests only to public validation endpoints.
+        if request.path in {
+            "/api/v1/validate",
+            "/api/v1/validate/document",
+        }:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            response.headers["Access-Control-Max-Age"] = "86400"
+            response.headers.pop("Access-Control-Allow-Credentials", None)
+
         return response
 
     @app.errorhandler(RequestEntityTooLarge)
