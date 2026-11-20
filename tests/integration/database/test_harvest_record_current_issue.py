@@ -64,7 +64,7 @@ def test_add_harvest_record_errors_writes_and_mirrors_each_row(
         for message, severity in [("an error", "error"), ("a warning", "warning")]
     ]
 
-    assert interface.add_harvest_record_errors(rows) is True
+    assert len(interface.add_harvest_record_errors(rows)) == 2
 
     errors = interface.get_harvest_record_errors_by_record(record.id, severity=None)
     current = (
