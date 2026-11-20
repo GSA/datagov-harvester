@@ -33,7 +33,7 @@ class TestLoadManagerSessionOwnership:
         assert load_manager.session is not harvester.session
 
     def test_load_manager_session_reuses_the_harvester_engine(self):
-        assert load_manager.session.bind is harvester.engine
+        assert load_manager.session.session_factory.kw["bind"] is harvester.engine
 
 
 class TestLoadManagerSessionLifecycle:
