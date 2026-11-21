@@ -753,6 +753,8 @@ class HarvestSource:
             self.external_records = []
             self.external_records_by_type = {}
         else:
+            # Release the read transaction before fetching the remote source.
+            self.db_interface.close()
             self.acquire_minimum_external_data()
 
     def acquire_minimum_internal_data(self) -> None:
