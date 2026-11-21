@@ -4,9 +4,12 @@ from unittest.mock import Mock
 from urllib.parse import urljoin
 
 import pytest
+from sqlalchemy import text
 
+from database.interface import HarvesterDBInterface
+from database.models import db
 from dcatus_validation.catalog import RESOLVED_IDENTIFIER_KEY
-from harvester.harvest import DT_PLACEHOLDER
+from harvester.harvest import DT_PLACEHOLDER, HarvestSource
 from harvester.utils.general_utils import traverse_waf
 
 WAF_HTML_EXAMPLES = Path(__file__).parents[2] / "waf-html-examples"
@@ -96,6 +99,60 @@ class TestExtract:
         harvest_source.acquire_minimum_external_data()
 
         assert len(harvest_source.external_records) == 7
+
+    def test_harvest_releases_read_transaction_before_download(
+        self,
+        dbapp,
+        monkeypatch,
+        organization_data,
+        source_data_dcatus,
+        job_data_dcatus,
+    ):
+        # Use the same scoped session as the harvest runner.
+        interface = HarvesterDBInterface()
+        monkeypatch.setattr("harvester.harvest.db_interface", interface)
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_dcatus)
+        job_id = interface.add_harvest_job(job_data_dcatus).id
+        interface.add_harvest_record(
+            {
+                "identifier": "previous-record",
+                "harvest_job_id": job_id,
+                "harvest_source_id": source_data_dcatus["id"],
+                "source_hash": "previous-hash",
+                "status": "success",
+                "action": "create",
+            }
+        )
+        harvest_source = HarvestSource(job_id)
+        backend_pid = db.session.execute(text("SELECT pg_backend_pid()")).scalar_one()
+        observed_transactions = []
+        catalog = {"dataset": [{"identifier": "remote-record"}]}
+
+        with db.engine.connect().execution_options(
+            isolation_level="AUTOCOMMIT"
+        ) as observer:
+
+            def download(url, file_type):
+                observed_transactions.append(
+                    observer.execute(
+                        text(
+                            "SELECT state, xact_start IS NULL FROM pg_stat_activity "
+                            "WHERE pid = :pid"
+                        ),
+                        {"pid": backend_pid},
+                    ).one()
+                )
+                return catalog
+
+            monkeypatch.setattr("harvester.harvest.download_file", download)
+            harvest_source.acquire_data_sources()
+
+        assert observed_transactions == [("idle", True)]
+        assert ("previous-record", "dataset") in harvest_source.internal_records
+        assert harvest_source.external_records == catalog["dataset"]
+        harvest_source.finish_job_with_status("complete")
+        assert interface.get_harvest_job(job_id).status == "complete"
 
     def test_extract_dcatus3_0(
         self,
