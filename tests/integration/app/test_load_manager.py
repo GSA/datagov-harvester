@@ -530,6 +530,37 @@ class TestLoadManager:
         # email subjects did not have format string characters
         assert all("{" not in args[1] for args, _ in email_mock.call_args_list)
 
+    @patch("harvester.lib.load_manager.send_email_to_recipients")
+    @patch("harvester.lib.cf_handler.CloudFoundryClient")
+    def test_clean_old_jobs_failed_prefixes_non_prod_subject(
+        self,
+        CFCMock,
+        email_mock,
+        interface_with_multiple_jobs,
+        force_cf_handler,
+        app,
+        monkeypatch,
+    ):
+        CFCMock.return_value.v3.apps._pagination.return_value = [
+            {"state": "SUCCEEDED", "name": "harvest-job-"},
+        ]
+        monkeypatch.setenv("FLASK_APP_SECRET_KEY", app.config["SECRET_KEY"])
+        monkeypatch.setenv(
+            "VCAP_APPLICATION", json.dumps({"space_name": "development"})
+        )
+        load_manager = LoadManager()
+        with patch.dict(
+            "harvester.lib.load_manager.SMTP_CONFIG",
+            {"recipient": "support@example.gov"},
+        ):
+            load_manager._clean_old_jobs()
+
+        assert email_mock.call_count == 3
+        for args, kwargs in email_mock.call_args_list:
+            subject = args[1]
+            assert subject.startswith("(Dev) Failed job cleaned up for ")
+            assert subject in kwargs["html_body"]
+
     @patch("harvester.lib.cf_handler.CloudFoundryClient")
     def test_clean_old_jobs_still_running(
         self, CFCMock, interface_with_multiple_jobs, force_cf_handler

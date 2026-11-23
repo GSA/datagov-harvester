@@ -321,6 +321,7 @@ class ValidatorForm(FlaskForm):
             "dcatus1.1: non-federal dataset",
             "dcatus3.0 catalog",
         ],
+        default="dcatus3.0 catalog",
         validators=[DataRequired()],
     )
     fetch_method = SelectField(
