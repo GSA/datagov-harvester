@@ -23,6 +23,11 @@ T = TypeVar("T")
 OPENSEARCH_INDEX_BATCH_FAILURE_MESSAGE = "failed to index in this batch"
 
 
+# AWS OpenSearch rejects request bodies over 10 MiB on smaller instance types;
+# opensearch-py's default chunk limit is 100 MB.
+MAX_BULK_REQUEST_BYTES = 5 * 1024 * 1024
+
+
 class OpenSearchWriter:
     def __init__(self, opensearchclient: OpenSearchClient):
         self.wrapper_client = opensearchclient
@@ -122,6 +127,7 @@ class OpenSearchWriter:
                 documents,
                 raise_on_error=False,
                 max_retries=8,
+                max_chunk_bytes=MAX_BULK_REQUEST_BYTES,
             ):
                 index_info = item.get("index")
                 index_error = index_info.get("error")

@@ -486,9 +486,20 @@ class HarvestSource:
                     documents, refresh_after=False
                 )
         except Exception as e:
-            logger.exception(
-                "OpenSearch indexing error for %s datasets: %s", len(documents), e
-            )
+            if len(documents) > 1:
+                # retry in halves so one bad document or a request that's too
+                # large costs only itself, not the whole batch
+                middle = len(documents) // 2
+                logger.warning(
+                    "OpenSearch indexing error for %s datasets, retrying in "
+                    "smaller batches: %s",
+                    len(documents),
+                    e,
+                )
+                self._index_opensearch_documents(documents[:middle])
+                self._index_opensearch_documents(documents[middle:])
+                return
+            logger.exception("OpenSearch indexing error for 1 dataset: %s", e)
             return
         if failed:
             logger.error(

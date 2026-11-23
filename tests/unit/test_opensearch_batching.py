@@ -90,3 +90,20 @@ class TestOpenSearchBatching(TestCase):
         self.source.opensearch.index_documents.assert_called_once_with(
             [{"id": 1}, {"id": 2}], refresh_after=False
         )
+
+    def test_failed_batch_is_retried_in_smaller_batches(self):
+        indexed = []
+
+        def index(documents, refresh_after):
+            if any(d["id"] == "bad" for d in documents):
+                raise RuntimeError("413 Request Entity Too Large")
+            indexed.extend(d["id"] for d in documents)
+            return len(documents), 0, []
+
+        self.source.opensearch.index_documents.side_effect = index
+        documents = [{"id": n} for n in range(7)] + [{"id": "bad"}]
+
+        with self.assertLogs("harvest_runner", level="ERROR"):
+            self.source._index_opensearch_documents(documents)
+
+        self.assertEqual(sorted(indexed), list(range(7)))
