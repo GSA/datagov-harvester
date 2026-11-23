@@ -101,7 +101,7 @@ logger = logging.getLogger("harvest_runner")
 RECORD_COUNT_BATCH_SIZE = 100
 RECORD_COUNT_FLUSH_SECONDS = 2
 OPENSEARCH_BATCH_SIZE = 100
-# a queued document waits at most this long; see queue_opensearch_document
+# while records run, queued search documents are sent at least this often
 OPENSEARCH_FLUSH_SECONDS = 2
 GEO_CACHE_SIZE = 1024
 # stays well under the SQLAlchemy pool (5 + 10 overflow); more than ~6 workers
@@ -204,7 +204,6 @@ class HarvestSource:
     _pending_count: int = field(default=0, init=False, repr=False)
     _opensearch_documents: list = field(default_factory=list, init=False, repr=False)
     _opensearch_needs_refresh: bool = field(default=False, init=False, repr=False)
-    _opensearch_queued_since: float | None = field(default=None, init=False, repr=False)
     _geo_cache: dict = field(default_factory=dict, init=False, repr=False)
     # guard state that record workers share (see harvest_records)
     _counts_lock: threading.Lock = field(
@@ -430,46 +429,24 @@ class HarvestSource:
         return location
 
     def queue_opensearch_document(self, document: dict) -> None:
-        """Queue a document for the next bulk index.
-
-        A record is already committed as successful when its document is
-        queued, and a later harvest won't re-index an unchanged record, so
-        queued documents are sent within OPENSEARCH_FLUSH_SECONDS (see
-        flush_opensearch_documents_if_due) to keep what a killed task can
-        lose small.
-        """
+        """Queue a document for the next bulk index, sending once
+        OPENSEARCH_BATCH_SIZE are queued. While records run, a background
+        thread also sends whatever is queued every OPENSEARCH_FLUSH_SECONDS
+        (see _start_opensearch_flusher): a record is already committed as
+        successful when its document is queued, and a later harvest won't
+        re-index an unchanged record, so this keeps what a killed task can
+        lose small."""
         with self._opensearch_lock:
             self._opensearch_documents.append(document)
-            if self._opensearch_queued_since is None:
-                self._opensearch_queued_since = time.monotonic()
-            if not self._opensearch_flush_due():
+            if len(self._opensearch_documents) < OPENSEARCH_BATCH_SIZE:
                 return
-            documents = self._take_opensearch_documents()
-        self._index_opensearch_documents(documents)
-
-    def flush_opensearch_documents_if_due(self) -> None:
-        with self._opensearch_lock:
-            if not self._opensearch_flush_due():
-                return
-            documents = self._take_opensearch_documents()
+            documents, self._opensearch_documents = self._opensearch_documents, []
         self._index_opensearch_documents(documents)
 
     def flush_opensearch_documents(self) -> None:
         with self._opensearch_lock:
-            documents = self._take_opensearch_documents()
+            documents, self._opensearch_documents = self._opensearch_documents, []
         self._index_opensearch_documents(documents)
-
-    def _opensearch_flush_due(self) -> bool:
-        return bool(self._opensearch_documents) and (
-            len(self._opensearch_documents) >= OPENSEARCH_BATCH_SIZE
-            or time.monotonic() - self._opensearch_queued_since
-            >= OPENSEARCH_FLUSH_SECONDS
-        )
-
-    def _take_opensearch_documents(self) -> list:
-        documents, self._opensearch_documents = self._opensearch_documents, []
-        self._opensearch_queued_since = None
-        return documents
 
     def _index_opensearch_documents(self, documents: list) -> None:
         """Bulk index documents without refreshing the index; a refresh per
@@ -1011,7 +988,7 @@ class HarvestSource:
         records = _records_until_stopped(records)
         if workers == 1:
             for record in records:
-                self._harvest_record(record)
+                record.harvest()
             return
 
         # create the shared client here rather than racing in the workers
@@ -1047,14 +1024,14 @@ class HarvestSource:
             future.result()
 
     def _start_opensearch_flusher(self):
-        """Send due search documents every second while records run, so one
-        slow record can't hold the queue. Call the returned function to stop
-        it; it waits for a send in progress so the final refresh covers it."""
+        """Send queued search documents every OPENSEARCH_FLUSH_SECONDS while
+        records run. Call the returned function to stop it; it waits for a
+        send in progress so the final refresh covers it."""
         stop = threading.Event()
 
         def run():
-            while not stop.wait(1):
-                self.flush_opensearch_documents_if_due()
+            while not stop.wait(OPENSEARCH_FLUSH_SECONDS):
+                self.flush_opensearch_documents()
 
         thread = threading.Thread(target=run, name="opensearch-flusher", daemon=True)
         thread.start()
@@ -1065,13 +1042,9 @@ class HarvestSource:
 
         return stop_flusher
 
-    def _harvest_record(self, record) -> None:
-        record.harvest()
-        self.flush_opensearch_documents_if_due()
-
     def _harvest_record_in_worker(self, record) -> None:
         try:
-            self._harvest_record(record)
+            record.harvest()
         finally:
             # each worker thread has its own scoped session; hand its
             # connection back between records

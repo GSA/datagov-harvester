@@ -53,7 +53,6 @@ class TestHarvestRecordWorkers(TestCase):
         self.source = object.__new__(HarvestSource)
         self.source._opensearch_lock = threading.Lock()
         self.source._opensearch_documents = []
-        self.source._opensearch_queued_since = None
         self.source._db_interface = Mock()
         self.source._opensearch = None
         self.source._opensearch_initialized = True

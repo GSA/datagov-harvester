@@ -24,7 +24,6 @@ def bare_source():
     source._counts_lock = threading.Lock()
     source._opensearch_lock = threading.Lock()
     source._opensearch_documents = []
-    source._opensearch_queued_since = None
     source._opensearch_needs_refresh = False
     source._opensearch = Mock()
     source._opensearch.index_documents.return_value = (1, 0, [])

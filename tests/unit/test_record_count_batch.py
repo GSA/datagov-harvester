@@ -16,7 +16,6 @@ class TestRecordCountBatch(TestCase):
         self.source._pending_count_since = None
         self.source._counts_lock = threading.Lock()
         self.source._opensearch_lock = threading.Lock()
-        self.source._opensearch_queued_since = None
         self.source._opensearch_documents = []
         self.source._opensearch_needs_refresh = False
 

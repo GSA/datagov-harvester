@@ -15,7 +15,6 @@ class TestOpenSearchBatching(TestCase):
         self.source._opensearch_initialized = True
         self.source._counts_lock = threading.Lock()
         self.source._opensearch_lock = threading.Lock()
-        self.source._opensearch_queued_since = None
 
     @patch("harvester.harvest.OPENSEARCH_BATCH_SIZE", 3)
     def test_full_batch_is_sent_without_refresh(self):
@@ -61,33 +60,6 @@ class TestOpenSearchBatching(TestCase):
             self.source.flush_opensearch_documents()
 
         self.assertEqual(self.source._opensearch_documents, [])
-
-    @patch("harvester.harvest.time.monotonic")
-    def test_queued_documents_are_sent_after_the_time_limit(self, clock):
-        clock.return_value = 100.0
-        self.source.queue_opensearch_document({"id": 1})
-
-        clock.return_value = 101.0
-        self.source.flush_opensearch_documents_if_due()
-        self.source.opensearch.index_documents.assert_not_called()
-
-        clock.return_value = 102.0
-        self.source.flush_opensearch_documents_if_due()
-        self.source.opensearch.index_documents.assert_called_once_with(
-            [{"id": 1}], refresh_after=False
-        )
-        self.assertIsNone(self.source._opensearch_queued_since)
-
-    @patch("harvester.harvest.time.monotonic")
-    def test_queueing_after_the_time_limit_sends_the_batch(self, clock):
-        clock.return_value = 100.0
-        self.source.queue_opensearch_document({"id": 1})
-        clock.return_value = 103.0
-        self.source.queue_opensearch_document({"id": 2})
-
-        self.source.opensearch.index_documents.assert_called_once_with(
-            [{"id": 1}, {"id": 2}], refresh_after=False
-        )
 
     def test_failed_batch_is_retried_in_smaller_batches(self):
         indexed = []
