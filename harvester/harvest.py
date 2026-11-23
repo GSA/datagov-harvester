@@ -89,8 +89,10 @@ from harvester.utils.general_utils import (
     traverse_waf,
 )
 from harvester.utils.harvest_job_email import (
+    UNSUBSCRIBE_FORM_URL,
     reharvest_link_guidance,
     render_harvest_job_email_html,
+    unsubscribe_guidance,
 )
 from harvester.utils.notification_frequency import notification_frequency_notice
 from harvester.utils.reharvest_links import create_reharvest_url
@@ -943,6 +945,7 @@ class HarvestSource:
                     "====\n"
                     "You received this email because you subscribed to harvester "
                     "updates.\n"
+                    f"{unsubscribe_guidance()}\n"
                     "Please do not reply to this email, as it is not monitored."
                 )
             else:
@@ -984,6 +987,7 @@ class HarvestSource:
                     "====\n"
                     "You received this email because you subscribed to harvester "
                     "updates.\n"
+                    f"{unsubscribe_guidance()}\n"
                     "Please do not reply to this email, as it is not monitored."
                 )
             subject = with_environment_prefix(subject)
@@ -1038,6 +1042,7 @@ class HarvestSource:
                     catalog_base_url=CATALOG_BASE_URL,
                     notification_frequency=source.notification_frequency,
                     notification_emails=self.notification_emails,
+                    unsubscribe_url=UNSUBSCRIBE_FORM_URL,
                 )
                 send_email_to_recipients(
                     [recipient], subject, recipient_body, html_body=html_body

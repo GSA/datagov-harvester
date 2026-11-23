@@ -115,6 +115,9 @@
             <tr>
               <td style="padding: 20px 32px; background: #f4f6f8; color: #565c65; font-size: 13px;">
                 {{ footer_message }}<br>
+                {% if unsubscribe_url %}
+                <a class="unsubscribe-link" href="{{ unsubscribe_url }}" style="color: #565c65;">Unsubscribe</a> from these emails.<br>
+                {% endif %}
                 Please do not reply to this email, as it is not monitored.
               </td>
             </tr>

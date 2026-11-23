@@ -187,6 +187,81 @@ def test_failed_job_cleanup_email_also_has_a_link(
     ]
 
 
+UNSUBSCRIBE_FORM_URL = "https://touchpoints.app.cloud.gov/touchpoints/ffb7e9d0/submit"
+
+
+def test_report_emails_include_unsubscribe_link(
+    app, interface_no_jobs, source_data_dcatus, monkeypatch
+):
+    job = finished_job(interface_no_jobs, source_data_dcatus)
+    source = HarvestSource(job.id)
+    source.notification_emails = ["one@gsa.gov"]
+    monkeypatch.setenv("FLASK_APP_SECRET_KEY", app.config["SECRET_KEY"])
+    results = {
+        "records_added": 0,
+        "records_updated": 0,
+        "records_deleted": 0,
+        "records_ignored": 0,
+        "records_errored": 0,
+        "records_warned": 0,
+        "records_validated": 0,
+    }
+
+    with (
+        patch(
+            "harvester.harvest.SMTP_CONFIG",
+            {
+                "base_url": "https://harvest.data.gov",
+                "recipient": "support@gsa.gov",
+            },
+        ),
+        patch("harvester.harvest.send_email_to_recipients") as send_email,
+    ):
+        source.send_notification_emails(results)
+        interface_no_jobs.update_harvest_job(job.id, {"status": "error"})
+        source.send_notification_emails(results, job_status="error")
+
+    assert send_email.call_count == 4
+    for call in send_email.call_args_list:
+        body = call.args[2]
+        link = BeautifulSoup(call.kwargs["html_body"], "html.parser").select_one(
+            ".unsubscribe-link"
+        )
+        assert (
+            "To unsubscribe from these emails, submit this form: "
+            f"{UNSUBSCRIBE_FORM_URL}"
+        ) in body
+        assert link is not None
+        assert link["href"] == UNSUBSCRIBE_FORM_URL
+        assert link.get_text() == "Unsubscribe"
+
+
+def test_failed_job_cleanup_email_has_no_unsubscribe_link(
+    app, interface_no_jobs, source_data_dcatus, monkeypatch
+):
+    monkeypatch.setenv("FLASK_APP_SECRET_KEY", app.config["SECRET_KEY"])
+    with (
+        patch(
+            "harvester.lib.load_manager.SMTP_CONFIG",
+            {
+                "base_url": "https://harvest.data.gov",
+                "recipient": "support@gsa.gov",
+            },
+        ),
+        patch("harvester.lib.load_manager.send_email_to_recipients") as send_email,
+    ):
+        LoadManager._email_recipients_of_failed_jobs(
+            None, [("job-1", "Example source", source_data_dcatus["id"])]
+        )
+
+    body = send_email.call_args.args[2]
+    html_body = send_email.call_args.kwargs["html_body"]
+    assert UNSUBSCRIBE_FORM_URL not in body
+    assert (
+        BeautifulSoup(html_body, "html.parser").select_one(".unsubscribe-link") is None
+    )
+
+
 def test_refresh_link_requires_confirmation_and_latest_job(
     app, client, interface_no_jobs, source_data_dcatus, caplog, monkeypatch
 ):
