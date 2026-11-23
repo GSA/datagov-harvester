@@ -112,6 +112,30 @@ ISO_TITLE_PATTERN = re.compile(
 )
 
 
+class HarvestStopped(BaseException):
+    """Raised between records once a stop was requested (SIGTERM), so the job
+    unwinds at a safe point and its final writes run on a clean session. A
+    BaseException so per-record `except Exception` handlers don't swallow it.
+    """
+
+
+_stop_requested = threading.Event()
+
+
+def _records_until_stopped(records):
+    """Yield records, checking for a stop before pulling each one so no
+    record is started (or its compare row written) after a stop."""
+    records = iter(records)
+    while True:
+        if _stop_requested.is_set():
+            raise HarvestStopped()
+        try:
+            record = next(records)
+        except StopIteration:
+            return
+        yield record
+
+
 def record_worker_count() -> int:
     """HARVEST_RECORD_WORKERS as an int in 1..MAX_RECORD_WORKERS; a bad value
     falls back to 1 rather than failing the job."""
@@ -962,7 +986,11 @@ class HarvestSource:
             return
         finally:
             # A harvest may end before the count or time threshold is reached.
-            self.flush_pending_counts()
+            # Each final write runs even if the other fails.
+            try:
+                self.flush_pending_counts()
+            except Exception as e:
+                logger.exception("Failed to write final job counts: %s", e)
             self.finish_opensearch_writes()
             logger.info("harvest timings: %s", self.timings.summary())
 
@@ -974,6 +1002,7 @@ class HarvestSource:
         records run in order on this thread, as before.
         """
         workers = record_worker_count()
+        records = _records_until_stopped(records)
         if workers == 1:
             for record in records:
                 self._harvest_record(record)
@@ -2164,10 +2193,12 @@ def check_for_more_work():
         emit_idle_transaction_event()
 
 
-def _exit_on_sigterm(signum, frame):
-    # unwind normally so run_full_harvest's finally sends queued counts and
-    # search documents before the task stops (CF sends SIGTERM, then SIGKILL)
-    raise SystemExit(128 + signum)
+def _stop_on_sigterm(signum, frame):
+    # CF sends SIGTERM, then SIGKILL after a grace period. Raising here could
+    # land inside a database write and break the session the final writes
+    # need, so only ask the record loop to stop at its next safe point.
+    logger.warning("Received SIGTERM; stopping after the current record")
+    _stop_requested.set()
 
 
 if __name__ == "__main__":
@@ -2178,16 +2209,16 @@ if __name__ == "__main__":
         parse_args,
     )
 
-    signal.signal(signal.SIGTERM, _exit_on_sigterm)
+    signal.signal(signal.SIGTERM, _stop_on_sigterm)
     exit_code = 0
     stopped = False
 
     try:
         args = parse_args(sys.argv[1:])
         harvest_job_starter(args.jobId, args.jobType)
-    except SystemExit as e:
+    except HarvestStopped:
         logger.warning("Harvest stopped by signal")
-        exit_code = e.code
+        exit_code = 128 + signal.SIGTERM
         stopped = True
     except Exception as e:
         logger.error(f"Harvest has experienced an error :: {repr(e)}")
