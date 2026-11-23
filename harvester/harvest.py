@@ -1960,6 +1960,7 @@ class Record:
             )
 
     def sync(self):
+        pending_written_on_failure = False
         try:
             if self.status == "error":
                 return False
@@ -1989,8 +1990,10 @@ class Record:
 
             # stays the final status if the dataset write below doesn't land;
             # the record is only written once that write has been attempted
+            # (or, if it raises, in the except below)
             self.status = "dataset_pending"
             self._ensure_date_finished()
+            pending_written_on_failure = True
             self.harvest_source.update_job_record_count_by_action(self.action)
 
             if self.action in ("create", "update") and metadata is not None:
@@ -2073,6 +2076,14 @@ class Record:
 
         except Exception as e:
             logger.error(f"error syncing record: {e}")
+            if pending_written_on_failure:
+                # the record used to be written as dataset_pending before the
+                # dataset write; keep leaving that row when the write fails
+                self.status = "dataset_pending"
+                try:
+                    self.update_self_in_db()
+                except Exception as write_error:
+                    logger.error(f"error recording pending status: {write_error}")
             self.status = "error"
             self.harvest_source.update_job_record_count_by_action("errored")
 
