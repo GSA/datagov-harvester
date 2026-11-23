@@ -978,8 +978,12 @@ class HarvestSource:
             )
 
             # deletions finish before new and changed records start
-            self.harvest_records(internal_records_to_delete)
-            self.harvest_records(external_records_to_process)
+            stop_flusher = self._start_opensearch_flusher()
+            try:
+                self.harvest_records(internal_records_to_delete)
+                self.harvest_records(external_records_to_process)
+            finally:
+                stop_flusher()
 
         except (ExtractInternalException, ExtractExternalException):
             self.finish_job_with_status("error")
@@ -1039,6 +1043,25 @@ class HarvestSource:
                 lane.shutdown(wait=True)
         for future in done:
             future.result()
+
+    def _start_opensearch_flusher(self):
+        """Send due search documents every second while records run, so one
+        slow record can't hold the queue. Call the returned function to stop
+        it; it waits for a send in progress so the final refresh covers it."""
+        stop = threading.Event()
+
+        def run():
+            while not stop.wait(1):
+                self.flush_opensearch_documents_if_due()
+
+        thread = threading.Thread(target=run, name="opensearch-flusher", daemon=True)
+        thread.start()
+
+        def stop_flusher():
+            stop.set()
+            thread.join()
+
+        return stop_flusher
 
     def _harvest_record(self, record) -> None:
         with self.timings.time("record"):

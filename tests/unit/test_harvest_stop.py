@@ -1,4 +1,5 @@
 import threading
+import time
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -133,6 +134,29 @@ class TestFinalWrites(StopFlagTestCase):
         self.assertEqual(
             source.db_interface.update_harvest_job.call_args.args[1]["records_added"], 1
         )
+        source.opensearch.index_documents.assert_called_once_with(
+            [{"id": 1}], refresh_after=False
+        )
+
+
+class TestOpenSearchFlusher(TestCase):
+    @patch("harvester.harvest.OPENSEARCH_FLUSH_SECONDS", 0.3)
+    def test_due_documents_are_sent_without_a_record_finishing(self):
+        source = bare_source()
+        stop = source._start_opensearch_flusher()
+        try:
+            source.queue_opensearch_document({"id": 1})
+            # not due yet, so queueing alone doesn't send
+            source.opensearch.index_documents.assert_not_called()
+            deadline = time.monotonic() + 3
+            while (
+                not source.opensearch.index_documents.called
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.05)
+        finally:
+            stop()
+
         source.opensearch.index_documents.assert_called_once_with(
             [{"id": 1}], refresh_after=False
         )
