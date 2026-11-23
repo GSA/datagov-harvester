@@ -446,6 +446,7 @@ class TestExtract:
         assert len(harvest_source.external_records) == 0
 
         errors = interface.get_harvest_record_errors_by_job(harvest_source.job_id)
+        harvest_source.flush_pending_counts()
         harvest_job = interface.get_harvest_job(harvest_source.job_id)
 
         msg = (

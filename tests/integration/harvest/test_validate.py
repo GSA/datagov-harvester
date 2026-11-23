@@ -147,13 +147,13 @@ class TestValidateDataset:
 
         with (
             patch.object(
-                harvest_source.db_interface, "get_geo_from_string", return_value=None
+                harvest_source.db_interface, "query_geo_from_string", return_value=None
             ) as lookup,
             patch("harvester.harvest.detect_dcat_warnings", side_effect=call_lookup),
         ):
             test_record.validate()
 
-        lookup.assert_called_once_with("Fair_ax", literal=True)
+        lookup.assert_called_once_with("Fair_ax", True)
 
     def test_validate_dcatus3_0_spatial_temporal(
         self,
@@ -669,6 +669,7 @@ class TestValidateWarnings:
         assert harvest_source.reporter.errored == 0
 
         # the count is persisted to the harvest_job row, not just the reporter
+        harvest_source.flush_pending_counts()
         harvest_job = interface.get_harvest_job(harvest_source.job_id)
         assert harvest_job.records_warned == 1
 
@@ -769,6 +770,7 @@ class TestValidateWarnings:
         assert harvest_source.reporter.validated == 3
         assert harvest_source.reporter.warned == 2
 
+        harvest_source.flush_pending_counts()
         stored_job = interface.get_harvest_job(harvest_job.id)
         assert stored_job.records_warned == 2
 
