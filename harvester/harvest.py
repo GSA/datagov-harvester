@@ -68,7 +68,6 @@ from harvester.exceptions import (
     log_non_critical_error,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
-from harvester.lib.harvest_timings import HarvestTimings
 from harvester.lib.load_manager import LoadManager
 from harvester.lib.task_handler import create_task_handler
 from harvester.utils.env_utils import with_environment_prefix
@@ -215,9 +214,6 @@ class HarvestSource:
         default_factory=threading.Lock, init=False, repr=False, compare=False
     )
     _pending_count_since: float | None = field(default=None, init=False, repr=False)
-    timings: HarvestTimings = field(
-        default_factory=HarvestTimings, init=False, repr=False
-    )
 
     def __post_init__(self) -> None:
         self._db_interface: HarvesterDBInterface = db_interface
@@ -405,8 +401,7 @@ class HarvestSource:
 
     def _persist_job_record_counts(self) -> None:
         """persist the current counts to the database and reset the pending count."""
-        with self.timings.time("job_counts"):
-            self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
+        self.db_interface.update_harvest_job(self.job_id, self.reporter.report())
         self._pending_count = 0
         self._pending_count_since = None
 
@@ -483,10 +478,9 @@ class HarvestSource:
             return
         self.note_opensearch_change()
         try:
-            with self.timings.time("opensearch_flush"):
-                succeeded, failed, errors = self.opensearch.index_documents(
-                    documents, refresh_after=False
-                )
+            succeeded, failed, errors = self.opensearch.index_documents(
+                documents, refresh_after=False
+            )
         except Exception as e:
             if len(documents) > 1:
                 # retry in halves so one bad document or a request that's too
@@ -525,8 +519,7 @@ class HarvestSource:
             return
         self._opensearch_needs_refresh = False
         try:
-            with self.timings.time("opensearch_refresh"):
-                self.opensearch.refresh()
+            self.opensearch.refresh()
         except Exception as e:
             logger.exception("OpenSearch refresh error: %s", e)
 
@@ -792,13 +785,11 @@ class HarvestSource:
                 record = self.external_records.pop(0)
                 parent_identifier = None
                 if self.source_type == "waf":
-                    with self.timings.time("download_xml"):
-                        record["content"] = download_file(record["identifier"], ".xml")
+                    record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
 
                 elif self.source_type == "waf-collection":
-                    with self.timings.time("download_xml"):
-                        record["content"] = download_file(record["identifier"], ".xml")
+                    record["content"] = download_file(record["identifier"], ".xml")
                     dataset = record["content"]
                     # the collection root has no parent of its own
                     if record["identifier"] != self.collection_parent_url:
@@ -961,8 +952,7 @@ class HarvestSource:
 
     def run_full_harvest(self) -> None:
         try:
-            with self.timings.time("acquire_data_sources"):
-                self.acquire_data_sources()
+            self.acquire_data_sources()
 
             self.filter_datasets_with_no_identifier()
 
@@ -1009,7 +999,6 @@ class HarvestSource:
             except Exception as e:
                 logger.exception("Failed to write final job counts: %s", e)
             self.finish_opensearch_writes()
-            logger.info("harvest timings: %s", self.timings.summary())
 
     def harvest_records(self, records) -> None:
         """Run harvest() on each record, on HARVEST_RECORD_WORKERS threads.
@@ -1077,8 +1066,7 @@ class HarvestSource:
         return stop_flusher
 
     def _harvest_record(self, record) -> None:
-        with self.timings.time("record"):
-            record.harvest()
+        record.harvest()
         self.flush_opensearch_documents_if_due()
 
     def _harvest_record_in_worker(self, record) -> None:
@@ -1448,25 +1436,19 @@ class Record:
                     self.harvest_source.id, self.record_type, self.identifier
                 )
                 return
-            timings = self.harvest_source.timings
-            with timings.time("record.compare"):
-                self.compare()
+            self.compare()
             if self.action is None:
                 return
             if self.harvest_source.schema_type.startswith("iso19115"):
-                with timings.time("record.transform"):
-                    self.transform()
-                    self.add_parent()
-                    self.replace_identifier()
-                    self.fill_placeholders()
-                    self.improve_distributions()
-                    self._save_transformed_data()
-            with timings.time("record.validate"):
-                self.validate()
-            with timings.time("record.sync_current_issues"):
-                self.sync_current_issues()
-            with timings.time("record.sync"):
-                self.sync()
+                self.transform()
+                self.add_parent()
+                self.replace_identifier()
+                self.fill_placeholders()
+                self.improve_distributions()
+                self._save_transformed_data()
+            self.validate()
+            self.sync_current_issues()
+            self.sync()
         except (
             CompareException,
             TransformationException,
@@ -1802,8 +1784,7 @@ class Record:
             record = self.transformed_data
 
         validator = self.harvest_source.validator_for(self.record_type)
-        with self.harvest_source.timings.time("record.validate.schema"):
-            errors = list(assemble_validation_errors(validator.iter_errors(record)))
+        errors = list(assemble_validation_errors(validator.iter_errors(record)))
         valid = not errors
         warnings = []
 
@@ -1813,19 +1794,17 @@ class Record:
         if self.harvest_source.schema_type == "dcatus3.0":
             # Matched literally, as the public validator does (it can't afford
             # wildcard matching); real place names never contain % _ or \.
-            with self.harvest_source.timings.time("record.validate.detect_warnings"):
-                warnings = detect_dcat_warnings(
-                    record,
-                    partial(
-                        self.harvest_source.geo_from_string,
-                        literal=True,
-                    ),
-                )
+            warnings = detect_dcat_warnings(
+                record,
+                partial(
+                    self.harvest_source.geo_from_string,
+                    literal=True,
+                ),
+            )
             if warnings:
                 self.harvest_source.update_job_record_count_by_action("warned")
 
-        with self.harvest_source.timings.time("record.validate.report_issues"):
-            self._report_validation_issues(errors, warnings)
+        self._report_validation_issues(errors, warnings)
 
         if valid:
             self.harvest_source.update_job_record_count_by_action("validated")
@@ -2039,10 +2018,7 @@ class Record:
                             )
                     if dataset:
                         self.status = "success"
-                    with self.harvest_source.timings.time(
-                        "record.sync.opensearch_index"
-                    ):
-                        self._index_dataset_in_opensearch(dataset)
+                    self._index_dataset_in_opensearch(dataset)
                 except EmptyFieldNameException as e:
                     if dataset:
                         self.harvest_source.db_interface.delete_dataset_by_slug(
@@ -2078,10 +2054,7 @@ class Record:
                         "Deleted dataset (slug: %s) - no longer present in source",
                         self.dataset_slug,
                     )
-                    with self.harvest_source.timings.time(
-                        "record.sync.opensearch_delete"
-                    ):
-                        self._delete_dataset_from_opensearch(dataset)
+                    self._delete_dataset_from_opensearch(dataset)
 
             self.update_self_in_db()
 

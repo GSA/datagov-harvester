@@ -11,7 +11,6 @@ from harvester.harvest import (
     _stop_on_sigterm,
 )
 from harvester.lib.harvest_reporter import HarvestReporter
-from harvester.lib.harvest_timings import HarvestTimings
 
 
 def bare_source():
@@ -22,7 +21,6 @@ def bare_source():
     source._db_interface = Mock()
     source._pending_count = 0
     source._pending_count_since = None
-    source.timings = HarvestTimings()
     source._counts_lock = threading.Lock()
     source._opensearch_lock = threading.Lock()
     source._opensearch_documents = []

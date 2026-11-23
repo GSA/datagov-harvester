@@ -3,7 +3,6 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from harvester.harvest import HarvestSource
-from harvester.lib.harvest_timings import HarvestTimings
 
 
 class TestOpenSearchBatching(TestCase):
@@ -14,7 +13,6 @@ class TestOpenSearchBatching(TestCase):
         self.source._opensearch = Mock()
         self.source._opensearch.index_documents.return_value = (1, 0, [])
         self.source._opensearch_initialized = True
-        self.source.timings = HarvestTimings()
         self.source._counts_lock = threading.Lock()
         self.source._opensearch_lock = threading.Lock()
         self.source._opensearch_queued_since = None

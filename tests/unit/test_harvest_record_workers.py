@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 
 from dcatus_validation.catalog import munge_title_to_name
 from harvester.harvest import HarvestSource, Record, record_worker_count
-from harvester.lib.harvest_timings import HarvestTimings
 
 
 class FakeRecord:
@@ -52,7 +51,6 @@ class ConcurrencyTracker:
 class TestHarvestRecordWorkers(TestCase):
     def setUp(self):
         self.source = object.__new__(HarvestSource)
-        self.source.timings = HarvestTimings()
         self.source._opensearch_lock = threading.Lock()
         self.source._opensearch_documents = []
         self.source._opensearch_queued_since = None

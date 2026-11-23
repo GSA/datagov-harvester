@@ -4,7 +4,6 @@ from unittest.mock import Mock, patch
 
 from harvester.harvest import HarvestSource
 from harvester.lib.harvest_reporter import HarvestReporter
-from harvester.lib.harvest_timings import HarvestTimings
 
 
 class TestRecordCountBatch(TestCase):
@@ -15,7 +14,6 @@ class TestRecordCountBatch(TestCase):
         self.source._db_interface = Mock()
         self.source._pending_count = 0
         self.source._pending_count_since = None
-        self.source.timings = HarvestTimings()
         self.source._counts_lock = threading.Lock()
         self.source._opensearch_lock = threading.Lock()
         self.source._opensearch_queued_since = None
