@@ -105,7 +105,9 @@ OPENSEARCH_BATCH_SIZE = 100
 # a queued document waits at most this long; see queue_opensearch_document
 OPENSEARCH_FLUSH_SECONDS = 2
 GEO_CACHE_SIZE = 1024
-MAX_RECORD_WORKERS = 16
+# stays well under the SQLAlchemy pool (5 + 10 overflow); more than ~6 workers
+# gained nothing locally because the runner becomes CPU-bound
+MAX_RECORD_WORKERS = 8
 # a citation title in an ISO 19115 document, read before MDTranslator runs
 ISO_TITLE_PATTERN = re.compile(
     r"<gmd:title>\s*<gco:CharacterString>([^<]*)</gco:CharacterString>"

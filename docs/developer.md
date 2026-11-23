@@ -45,7 +45,7 @@ In deployed (Cloud.gov) environments, harvest jobs run as Cloud Foundry tasks vi
 
 #### Record workers
 
-`HARVEST_RECORD_WORKERS` sets how many threads process records at once within a harvest job (default `1`, records run one at a time in order). Record processing mostly waits on Postgres, OpenSearch, and MDTranslator, so a few workers overlap that waiting; 4 gave about 4x throughput on a local 2,000-record DCAT-US harvest, and 8 added little because the runner becomes CPU-bound. Deleted records finish before new and changed records start. WAF harvests only speed up if MDTranslator can serve requests in parallel.
+`HARVEST_RECORD_WORKERS` sets how many threads process records at once within a harvest job (default `1`, records run one at a time in order; capped at 8, and a value that isn't a number falls back to 1). Record processing mostly waits on Postgres, OpenSearch, and MDTranslator, so a few workers overlap that waiting; 4 gave about 4x throughput on a local 2,000-record DCAT-US harvest, and 8 added little because the runner becomes CPU-bound. Deleted records finish before new and changed records start. WAF harvests only speed up if MDTranslator can serve requests in parallel.
 
 #### Optional: running the harvest runner on the host
 

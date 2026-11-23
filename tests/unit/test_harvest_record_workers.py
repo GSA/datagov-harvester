@@ -147,7 +147,7 @@ class TestHarvestRecordWorkers(TestCase):
 
 class TestRecordWorkerCount(TestCase):
     def test_parses_and_bounds_the_setting(self):
-        cases = {"4": 4, "0": 1, "-3": 1, "99": 16, " 2 ": 2}
+        cases = {"4": 4, "0": 1, "-3": 1, "99": 8, " 2 ": 2}
         for value, expected in cases.items():
             with patch.dict("os.environ", {"HARVEST_RECORD_WORKERS": value}):
                 self.assertEqual(record_worker_count(), expected, value)
