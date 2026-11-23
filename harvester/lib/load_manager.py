@@ -5,6 +5,7 @@ from datetime import datetime
 from database.interface import HarvestSourceLockedError
 from harvester import SMTP_CONFIG
 from harvester.lib.task_handler import create_task_handler
+from harvester.utils.env_utils import with_environment_prefix
 from harvester.utils.general_utils import (
     create_future_date,
     get_datetime,
@@ -49,8 +50,11 @@ class LoadManager:
                 source_id,
                 job_id,
             )
+            subject = with_environment_prefix(
+                f"Failed job cleaned up for {source_name}"
+            )
             html_body = render_harvest_job_email_html(
-                title=f"Failed job cleaned up for {source_name}",
+                title=subject,
                 introduction=(
                     "An in-progress harvest job stopped unexpectedly and was "
                     "marked as failed."
@@ -79,7 +83,7 @@ class LoadManager:
                 body += f"\n\n{frequency_notice.text}"
             send_email_to_recipients(
                 [recipient],
-                f"Failed job cleaned up for {source_name}",
+                subject,
                 body,
                 html_body=html_body,
             )
