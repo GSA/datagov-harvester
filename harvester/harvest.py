@@ -106,7 +106,7 @@ OPENSEARCH_BATCH_SIZE = 100
 OPENSEARCH_FLUSH_SECONDS = 2
 GEO_CACHE_SIZE = 1024
 MAX_RECORD_WORKERS = 16
-# first citation title in an ISO 19115 document, before MDTranslator runs
+# a citation title in an ISO 19115 document, read before MDTranslator runs
 ISO_TITLE_PATTERN = re.compile(
     r"<gmd:title>\s*<gco:CharacterString>([^<]*)</gco:CharacterString>"
 )
@@ -2085,7 +2085,11 @@ class Record:
         title = None
         try:
             if self.harvest_source.schema_type.startswith("iso19115"):
-                match = ISO_TITLE_PATTERN.search(self.source_raw or "")
+                # the dataset's own citation; earlier titles in the document
+                # cite things like the coordinate reference system
+                raw = self.source_raw or ""
+                start = max(raw.find("identificationInfo"), 0)
+                match = ISO_TITLE_PATTERN.search(raw, start)
                 title = match.group(1) if match else None
             else:
                 title = json.loads(self.source_raw).get("title")

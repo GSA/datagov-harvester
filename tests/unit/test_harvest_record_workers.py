@@ -185,3 +185,16 @@ class TestSlugKey(TestCase):
         for raw in [None, "not json", '{"description": "x"}', '{"title": ""}']:
             record = self.record("dcatus3.0", raw, "the-id")
             self.assertEqual(record.slug_key(), "identifier:the-id", raw)
+
+    def test_iso_title_skips_citations_before_identification_info(self):
+        xml = (
+            "<gmd:referenceSystemInfo><gmd:authority><gmd:CI_Citation>"
+            "<gmd:title><gco:CharacterString>North American Datum of 1983"
+            "</gco:CharacterString></gmd:title></gmd:CI_Citation></gmd:authority>"
+            "</gmd:referenceSystemInfo><gmd:identificationInfo>"
+            "<gmd:MD_DataIdentification><gmd:citation><gmd:CI_Citation>"
+            "<gmd:title><gco:CharacterString>Census Tracts 2026"
+            "</gco:CharacterString></gmd:title>"
+        )
+        record = self.record("iso19115_2", xml)
+        self.assertEqual(record.slug_key(), munge_title_to_name("Census Tracts 2026"))
