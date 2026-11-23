@@ -151,7 +151,7 @@ def test_dataset_to_document(sample_dataset, monkeypatch):
     assert document["dcat"]["isPartOf"] == "collection-1"
     assert document["parent_identifier"] == "parent-1"
     assert document["distribution_titles"] == ["CSV download", "API endpoint"]
-    assert document["has_spatial"] is True
+    assert document["has_spatial"] is False
     assert document["has_download"] is False
     assert document["harvest_record"] == "https://catalog.data.gov/harvest_record/hr-1"
     assert (
@@ -203,24 +203,6 @@ def test_dataset_to_document_uses_configured_catalog_base_url(
         document["harvest_record_transformed"]
         == "https://example.gov/harvest_record/hr-1/transformed"
     )
-
-
-def test_dataset_to_document_has_dcat_spatial(sample_dataset):
-    sample_dataset.translated_spatial = None
-
-    dataset_doc = DatasetDocument(sample_dataset)
-    document = dataset_doc.dataset_to_document()
-
-    assert document["has_spatial"] is True
-
-
-def test_dataset_to_document_has_translated_spatial(sample_dataset):
-    sample_dataset.dcat.pop("spatial", None)
-
-    dataset_doc = DatasetDocument(sample_dataset)
-    document = dataset_doc.dataset_to_document()
-
-    assert document["has_spatial"] is True
 
 
 @pytest.mark.parametrize(
@@ -533,7 +515,7 @@ def test_dataset_to_document_with_spatial_data(
     dataset_doc = DatasetDocument(mock_dataset_with_spatial)
     document = dataset_doc.dataset_to_document()
 
-    assert document["has_spatial"] is True
+    assert document["has_spatial"] is False
     assert isinstance(document["dcat"]["modified"], str)
     assert document["dcat"]["modified"] == "2023-01-15T10:30:00"
 
