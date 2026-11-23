@@ -43,9 +43,27 @@ Note that you do not need to set the `CF_SERVICE_USER` and `CF_SERVICE_AUTH` var
 
 In deployed (Cloud.gov) environments, harvest jobs run as Cloud Foundry tasks via `CFHandler`. Locally there is no CF task API, so the app falls back to `LocalTaskHandler`, which runs the same `python harvester/harvest.py <job_id> <job_type>` command as a child subprocess of the running app. The handler is selected automatically by `create_task_handler()` (`harvester/lib/task_handler.py`): it uses `CFHandler` only when running on Cloud Foundry or when all three `CF_*` credentials are configured, and otherwise uses `LocalTaskHandler`. This means you can register a harvest source and trigger a harvest locally without any Cloud Foundry credentials.
 
-#### Record workers
+#### Record workers and batched writes
 
-`HARVEST_RECORD_WORKERS` sets how many threads process records at once within a harvest job (default `1`, records run one at a time in order; capped at 8, and a value that isn't a number falls back to 1). Record processing mostly waits on Postgres, OpenSearch, and MDTranslator, so a few workers overlap that waiting; 4 gave about 4x throughput on a local 2,000-record DCAT-US harvest, and 8 added little because the runner becomes CPU-bound. Deleted records finish before new and changed records start. WAF harvests only speed up if MDTranslator can serve requests in parallel.
+`HARVEST_RECORD_WORKERS` sets how many threads process records at once within a harvest job. Set it on the `datagov-harvest` app; harvest tasks inherit the app's environment.
+
+- Default `1`: records run one at a time, in catalog order.
+- Capped at 8; a value that isn't a number falls back to 1 with a warning.
+- Record processing mostly waits on Postgres, OpenSearch, and MDTranslator, so a few workers overlap that waiting. On a local 2,000-record DCAT-US harvest, 4 workers gave about 4x the throughput of 1; more than about 6 added little because the runner becomes CPU-bound.
+- Deleted records finish before new and changed records start.
+- Records whose titles produce the same slug run on the same worker in catalog order, so the first one keeps the slug without a uuid suffix, as with one worker. Other records can finish in any order.
+- WAF harvests only speed up if MDTranslator can serve requests in parallel.
+
+To keep round trips down, some writes are batched during a job:
+
+- Job counts are written every 100 record updates or 2 seconds, and at the end of the job, so progress in the UI can lag by up to 2 seconds.
+- A record's validation errors and warnings are written together.
+- Search documents are sent to OpenSearch every 100 documents or 2 seconds (bulk requests are capped at 5 MB), and the index is refreshed once at the end of the job. A failed bulk request is retried in smaller batches.
+
+Stopping a job:
+
+- On SIGTERM (a cancelled job, or Cloud Foundry stopping the task) the runner finishes the record in progress, writes the pending counts and search documents, and exits with code 143.
+- A SIGKILL can lose up to about 2 seconds of queued search documents. Those records are already marked `success`, so later harvests won't re-index them until they change; the daily Sync OpenSearch workflow (`flask search compare --update`, see [opensearch-reindex.md](ops/opensearch-reindex.md)) indexes them.
 
 #### Optional: running the harvest runner on the host
 
