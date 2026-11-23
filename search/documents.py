@@ -117,15 +117,10 @@ class DatasetDocument:
         # Flat top-level search fields; nested_dcat keeps original DCAT shapes.
         index_fields = self.DCAT_INDEX_TRANSFORMER.transform(dataset.dcat)
 
-        spatial_value = dataset.dcat.get("spatial")
-        has_spatial_theme = any(
+        has_spatial = any(
             label.strip().lower() == "geospatial" for label in index_fields["theme"]
         )
-        has_spatial = (
-            bool(spatial_value and str(spatial_value).strip())
-            or dataset.translated_spatial is not None
-            or has_spatial_theme
-        )
+
         has_download = any(
             isinstance(distribution, dict)
             and str(distribution.get("downloadURL") or "").strip()
