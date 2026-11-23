@@ -20,7 +20,7 @@ from opensearchpy.exceptions import NotFoundError
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session, sessionmaker
 
-from tests.xdist_db import use_worker_database
+from tests.xdist_db import drop_worker_database, use_worker_database
 
 load_dotenv()
 use_worker_database()
@@ -31,6 +31,7 @@ from database.interface import HarvesterDBInterface
 from database.models import HarvestJob, HarvestSource, Locations, Organization, db
 from dcatus_validation.messages import open_json
 from dcatus_validation.schema_paths import DCATUS3_COMPLETE_EXAMPLE
+from harvester import engine as harvester_engine
 from harvester.lib.load_manager import create_future_date
 from harvester.utils.general_utils import dataset_to_hash, sort_dataset
 from search.client import OpenSearchClient
@@ -74,6 +75,16 @@ def app() -> Generator[Any, Flask, Any]:
     app = create_app()
     app.config.update({"TESTING": True})
     return app
+
+
+def pytest_sessionfinish(session, exitstatus):
+    # Some modules override the app fixture, so engines are collected from
+    # Flask-SQLAlchemy's per-app registry instead of a single app.
+    for engines in list(db._app_engines.values()):
+        for engine in engines.values():
+            engine.dispose()
+    harvester_engine.dispose()
+    drop_worker_database()
 
 
 @pytest.fixture(autouse=True)
