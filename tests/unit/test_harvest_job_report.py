@@ -244,3 +244,52 @@ class TestReportRecipientsDisplay:
         formatted = format_recipient_list(recipients)
 
         assert formatted == "None"
+
+
+class TestUnsubscribeLink:
+    FORM_URL = "https://touchpoints.app.cloud.gov/touchpoints/ffb7e9d0/submit"
+
+    @staticmethod
+    def render(**kwargs):
+        from harvester.utils.harvest_job_email import render_harvest_job_email_html
+
+        return render_harvest_job_email_html(
+            title="Test Report",
+            introduction="Test intro",
+            source_name="Test Source",
+            job_id="test-job-123",
+            job_url="http://example.com/job/123",
+            refresh_url="http://example.com/refresh",
+            **kwargs,
+        )
+
+    def test_renders_unsubscribe_link_when_url_provided(self):
+        from bs4 import BeautifulSoup
+
+        html = self.render(unsubscribe_url=self.FORM_URL)
+
+        link = BeautifulSoup(html, "html.parser").select_one(".unsubscribe-link")
+        assert link is not None
+        assert link["href"] == self.FORM_URL
+        assert link.get_text() == "Unsubscribe"
+
+    def test_omits_unsubscribe_link_by_default(self):
+        from bs4 import BeautifulSoup
+
+        html = self.render()
+
+        assert (
+            BeautifulSoup(html, "html.parser").select_one(".unsubscribe-link") is None
+        )
+
+    def test_unsubscribe_form_url_is_touchpoints_form(self):
+        from harvester.utils.harvest_job_email import UNSUBSCRIBE_FORM_URL
+
+        assert UNSUBSCRIBE_FORM_URL == self.FORM_URL
+
+    def test_unsubscribe_guidance_links_to_form(self):
+        from harvester.utils.harvest_job_email import unsubscribe_guidance
+
+        assert unsubscribe_guidance() == (
+            f"To unsubscribe from these emails, submit this form: {self.FORM_URL}"
+        )
