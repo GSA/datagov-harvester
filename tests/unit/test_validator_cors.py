@@ -7,9 +7,7 @@ from validator_api import create_app
 
 @pytest.fixture
 def validator_client(monkeypatch):
-    monkeypatch.setattr(
-        "dcatus_validation.fetch.ALLOW_PRIVATE_ADDRESSES", True
-    )
+    monkeypatch.setattr("dcatus_validation.fetch.ALLOW_PRIVATE_ADDRESSES", True)
     app = create_app()
     app.config.update({"TESTING": True})
     return app.test_client()
