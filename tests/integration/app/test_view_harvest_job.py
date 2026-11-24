@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 import pytest
+from bs4 import BeautifulSoup
 
 
 @pytest.fixture
@@ -30,6 +31,29 @@ def job_with_many_errors(interface_with_fixture_json):
                     "harvest_record_id": record.id,
                 }
             )
+    return job
+
+
+@pytest.fixture
+def job_with_many_error_pages(interface_with_fixture_json):
+    job = interface_with_fixture_json.get_first_harvest_job_by_filter({})
+    for r in range(90):
+        record = interface_with_fixture_json.add_harvest_record(
+            {
+                "harvest_job_id": job.id,
+                "harvest_source_id": job.source.id,
+                "identifier": f"paged-errors-record-{r}",
+                "status": "error",
+            }
+        )
+        interface_with_fixture_json.add_harvest_record_error(
+            {
+                "type": "testing",
+                "message": f"Error {r}",
+                "harvest_job_id": job.id,
+                "harvest_record_id": record.id,
+            }
+        )
     return job
 
 
@@ -216,6 +240,19 @@ class TestViewHarvestJob:
         # page=1 should be in the "previous" button
         resp = client.get(f"/harvest_job/{job_with_many_errors.id}?page=2")
         assert f'hx-get="/harvest_job/{job_with_many_errors.id}?page=1"' in resp.text
+
+    def test_job_error_pagination_shows_next_page_button(
+        self, client, job_with_many_error_pages
+    ):
+        resp = client.get(f"/harvest_job/{job_with_many_error_pages.id}?page=5")
+
+        pages = [
+            button.get_text(strip=True)
+            for button in BeautifulSoup(resp.text, "html.parser").select(
+                ".usa-pagination__page-no, .usa-pagination__overflow"
+            )
+        ]
+        assert pages[:6] == ["1", "…", "4", "5", "6", "…"]
 
     def test_record_error_summary(self, client, job_with_many_errors):
         resp = client.get(f"/harvest_job/{job_with_many_errors.id}")
