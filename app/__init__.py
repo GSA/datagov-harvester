@@ -38,8 +38,9 @@ load_manager = None
 load_dotenv()
 logging.config.dictConfig(LOGGING_CONFIG)
 
-# fixes a bug with Flask-HTMX not being able to find the app context
-htmx = None
+# Created at import so `from app import htmx` never binds None, even when a
+# module is imported before create_app() runs; create_app() binds it to the app.
+htmx = HTMX()
 
 _VERSIONED_API_PATH = re.compile(r"^/api/(v\d+)/([^/]+)")
 
@@ -341,8 +342,7 @@ def create_app():
 
         return render_template("413.html", message=message), 413
 
-    global htmx
-    htmx = HTMX(app)
+    htmx.init_app(app)
 
     db.init_app(app)
 
