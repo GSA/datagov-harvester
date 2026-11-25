@@ -44,7 +44,9 @@ def test_index_datasets_counts_errors(monkeypatch, sample_dataset):
     client = OpenSearchClient.from_environment()
     iface = OpenSearchWriter(client)
 
-    def fake_streaming_bulk(client, documents, raise_on_error, max_retries):
+    def fake_streaming_bulk(
+        client, documents, raise_on_error, max_retries, max_chunk_bytes
+    ):
         assert client is iface.client
         assert len(documents) == 1
         yield True, {"index": {"result": "created", "_id": "dataset-1"}}
