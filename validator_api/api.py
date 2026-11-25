@@ -168,6 +168,13 @@ _RESPONSES = {
         ),
         "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
     },
+    429: {
+        "description": (
+            "Too many requests from this address, blocked before reaching the "
+            "validator; try again later"
+        ),
+        "content": {"application/json": {"schema": ValidationErrorResponseSchema}},
+    },
     503: {
         "description": (
             "Busy validating another large catalog on this instance; try again"

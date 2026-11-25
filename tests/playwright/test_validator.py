@@ -510,6 +510,14 @@ class TestValidatorApiResponses:
                 "Submission is too large. Maximum size is 150 MB.",
             ),
             (
+                429,
+                "application/json",
+                '{"error": "Unusual activity detected from your network. '
+                'Please wait a few minutes and try again."}',
+                "Unusual activity detected from your network. "
+                "Please wait a few minutes and try again.",
+            ),
+            (
                 503,
                 "application/json",
                 '{"error": "The validator is busy with another large catalog. '
