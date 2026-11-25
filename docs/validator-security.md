@@ -100,3 +100,28 @@ Validation is ~20 times faster than Python jsonschema alone, with the same resul
 - The validator answers place-name lookups from `dcatus_validation/reference_data/location_names.sqlite`, not the database: every locations row's display name behind a trigram index, built from prod with `database/export_validator_locations.sh` whenever the locations table is reloaded. It gives the harvester's answer for every name, except that `%`, `_` and `\` are matched as plain characters, not as `ILIKE` wildcards. Each lookup is an index query (about 0.01 ms, including names built to dodge the cache), and a name longer than every location name returns before the cache. See `dcatus_validation/places.py`.
 - Add a test with each new limit or check, next to the existing ones in `tests/unit/dcatus_validation/` and `tests/integration/validator_api/`.
 - Never take a message, path or count from jsonschema-rs. It only answers valid or invalid, and Python jsonschema reports every error. Adding a keyword to `fast_path.RUST_KEYWORDS` needs the same review and differential tests as the existing ones.
+
+## Cross-Origin Resource Sharing (CORS)
+
+The public validator API supports cross-origin browser requests to:
+
+- `POST /api/v1/validate`
+- `POST /api/v1/validate/document`
+
+Both endpoints support OPTIONS preflight requests and return:
+
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: POST, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type`
+- `Access-Control-Max-Age: 86400`
+
+Wildcard origins are permitted because these validation endpoints are
+public, unauthenticated, and stateless.
+
+`Access-Control-Allow-Credentials` is not set.
+
+CORS headers are restricted to these two endpoints and are not applied
+to unrelated validator routes or authenticated administrative APIs.
+
+This change does not modify validation rules, SSRF protections, request
+size limits, or authentication behavior.
