@@ -11,6 +11,7 @@ _TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 _SUBSCRIPTION_FOOTER = (
     "You received this email because you subscribed to harvester updates."
 )
+UNSUBSCRIBE_FORM_URL = "https://touchpoints.app.cloud.gov/touchpoints/ffb7e9d0/submit"
 _ENV = Environment(
     loader=FileSystemLoader(_TEMPLATE_DIR),
     autoescape=select_autoescape(["html"]),
@@ -35,6 +36,11 @@ def reharvest_link_guidance():
     )
 
 
+def unsubscribe_guidance():
+    """Tell report recipients how to stop receiving these emails."""
+    return f"To unsubscribe from these emails, submit this form: {UNSUBSCRIBE_FORM_URL}"
+
+
 def render_harvest_job_email_html(
     *,
     title,
@@ -52,6 +58,7 @@ def render_harvest_job_email_html(
     footer_message=_SUBSCRIPTION_FOOTER,
     notification_frequency=None,
     notification_emails=None,
+    unsubscribe_url=None,
 ):
     """Render all email content; Jinja escapes names, errors, and URLs."""
     summary = (
@@ -87,4 +94,5 @@ def render_harvest_job_email_html(
         link_guidance=reharvest_link_guidance(),
         frequency_notice=notification_frequency_notice(notification_frequency),
         notification_emails=notification_emails,
+        unsubscribe_url=unsubscribe_url,
     )
