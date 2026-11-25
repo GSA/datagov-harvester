@@ -1044,6 +1044,7 @@ class TestCheckMoreWork:
         start_task_mock = CFCMock.return_value.v3.tasks.create
         assert start_task_mock.call_count == 1
 
+        interface.db.expire_all()
         job = interface.db.get(HarvestJob, job_id)
 
         # job in progress

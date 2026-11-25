@@ -34,6 +34,7 @@ def test_lock_blocks_queuing_and_starting_until_unlock(
     db.set_harvest_source_lock(source_id, False)
     assert [job.id for job in db.get_new_harvest_jobs_in_past()] == [queued_job.id]
     assert LoadManager()._prepare_job_in_db(queued_job.id) is None
+    db.db.expire_all()
     assert db.get_harvest_job(queued_job.id).status == "in_progress"
 
 
