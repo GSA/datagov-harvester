@@ -2,7 +2,7 @@
 
 {# Add +1 to first_five / last_five due to how ranges work in jinja #}
 {% set pager_ranges = {
-    'default': range(pagination.current - 1, pagination.current + 1),
+    'default': range(pagination.current - 1, pagination.current + 2),
     'last_item': pagination.page_count,
     'first_five': range(1, 5 + 1),
     'last_five': range(pagination.page_count - 4, pagination.page_count + 1),
