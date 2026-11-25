@@ -70,6 +70,21 @@ def app() -> Generator[Any, Flask, Any]:
     return app
 
 
+@pytest.fixture
+def mock_catalog_download(monkeypatch, tmp_path):
+    """Hand HarvestSource a catalog dict in place of downloading its url."""
+
+    def _serve(catalog: dict) -> None:
+        path = tmp_path / "catalog.json"
+        path.write_text(json.dumps(catalog))
+        monkeypatch.setattr(
+            "harvester.harvest.download_json_to_file",
+            lambda url: (str(path), "utf-8"),
+        )
+
+    return _serve
+
+
 @pytest.fixture(autouse=True)
 def enable_named_logger_propagation():
     loggers = [
