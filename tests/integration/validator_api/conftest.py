@@ -13,6 +13,15 @@ def allow_private_addresses(monkeypatch):
     monkeypatch.setattr("dcatus_validation.fetch.ALLOW_PRIVATE_ADDRESSES", True)
 
 
+@pytest.fixture(autouse=True)
+def isolated_large_document_lock(monkeypatch, tmp_path):
+    """The real lock file is machine-wide, so parallel (xdist) workers would
+    get each other's 503 "busy" response on large catalogs."""
+    monkeypatch.setattr(
+        "validator_api.api.LARGE_DOCUMENT_LOCK_PATH", str(tmp_path / "large.lock")
+    )
+
+
 # Named apart from the root conftest's `app`/`client`, which are the admin app.
 @pytest.fixture
 def validator_app():
