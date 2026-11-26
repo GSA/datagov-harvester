@@ -1,11 +1,50 @@
+import uuid
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 from deepdiff import DeepDiff
 
+from database.models import HarvestRecordCurrentIssue
 from harvester.exceptions import TransformationException
-from harvester.harvest import HarvestSource
+from harvester.harvest import HarvestSource, Record
+from harvester.utils.general_utils import dataset_to_hash
+
+INVALID_ISO2 = Path(__file__).parents[3] / "example_data/iso_2_waf/invalid_iso2.xml"
+
+
+def _mdtranslator_422():
+    response = Mock()
+    response.status_code = 422
+    response.json.return_value = {
+        "readerStructureMessages": [],
+        "readerValidationMessages": ["ERROR: XML file is not well formed"],
+    }
+    response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        "422 Client Error: Unprocessable Entity"
+    )
+    return response
+
+
+def _harvest_untransformable_record(interface, job_data, identifier):
+    """Run one harvest job's worth of work for a single ISO record that
+    mdTranslator rejects."""
+    job = interface.add_harvest_job({**job_data, "id": str(uuid.uuid4())})
+    harvest_source = HarvestSource(job.id)
+    source_raw = INVALID_ISO2.read_text()
+    record = Record(harvest_source, identifier, source_raw, dataset_to_hash(source_raw))
+    with patch("requests.post", return_value=_mdtranslator_422()):
+        record.harvest()
+    return record
+
+
+def _outstanding_issues(interface, source_id, identifier):
+    return (
+        interface.db.query(HarvestRecordCurrentIssue)
+        .filter_by(harvest_source_id=source_id, identifier=identifier)
+        .all()
+    )
 
 
 class TestTransform:
@@ -264,3 +303,114 @@ class TestTransform:
                 "record failed to transform with error: 'int' object is not "
                 "subscriptable"
             )
+
+    def test_failed_transform_does_not_pile_up_outstanding_issues(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """A file that keeps failing to transform is one outstanding issue,
+        replaced on every run, not one more per run."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        source_id = source_data_waf_iso19115_2["id"]
+        identifier = "http://localhost:80/iso_2_waf/invalid_iso2.xml"
+
+        for _ in range(3):
+            record = _harvest_untransformable_record(
+                interface, job_data_waf_iso19115_2, identifier
+            )
+            assert record.status == "error"
+
+        issues = _outstanding_issues(interface, source_id, identifier)
+        assert [issue.type for issue in issues] == ["TransformationException"]
+        assert issues[0].harvest_record_id == record.id
+
+    def test_failed_transform_replaces_earlier_outstanding_issues(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """Issues left by an earlier attempt are replaced by the transform
+        failure, like any other reprocessed record."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        source_id = source_data_waf_iso19115_2["id"]
+        identifier = "http://localhost:80/iso_2_waf/invalid_iso2.xml"
+
+        earlier_job = interface.add_harvest_job(
+            {**job_data_waf_iso19115_2, "id": str(uuid.uuid4())}
+        )
+        earlier = interface.add_harvest_record(
+            {
+                "identifier": identifier,
+                "harvest_job_id": earlier_job.id,
+                "harvest_source_id": source_id,
+                "status": "error",
+            }
+        )
+        interface.add_harvest_record_error(
+            {
+                "harvest_job_id": earlier_job.id,
+                "harvest_record_id": earlier.id,
+                "type": "ValidationException",
+                "message": "$, 'description' is a required property",
+            }
+        )
+        assert len(_outstanding_issues(interface, source_id, identifier)) == 1
+
+        record = _harvest_untransformable_record(
+            interface, job_data_waf_iso19115_2, identifier
+        )
+
+        issues = _outstanding_issues(interface, source_id, identifier)
+        assert [issue.type for issue in issues] == ["TransformationException"]
+        assert issues[0].harvest_record_id == record.id
+
+    def test_failed_transform_clears_outstanding_issues_piled_up_by_earlier_runs(
+        self,
+        interface,
+        organization_data,
+        source_data_waf_iso19115_2,
+        job_data_waf_iso19115_2,
+    ):
+        """Sources already carry one transform error per earlier run for the
+        same file. The next run leaves just its own."""
+        interface.add_organization(organization_data)
+        interface.add_harvest_source(source_data_waf_iso19115_2)
+        source_id = source_data_waf_iso19115_2["id"]
+        identifier = "http://localhost:80/iso_2_waf/invalid_iso2.xml"
+
+        for _ in range(3):
+            earlier_job = interface.add_harvest_job(
+                {**job_data_waf_iso19115_2, "id": str(uuid.uuid4())}
+            )
+            earlier = interface.add_harvest_record(
+                {
+                    "identifier": identifier,
+                    "harvest_job_id": earlier_job.id,
+                    "harvest_source_id": source_id,
+                    "status": "error",
+                }
+            )
+            interface.add_harvest_record_error(
+                {
+                    "harvest_job_id": earlier_job.id,
+                    "harvest_record_id": earlier.id,
+                    "type": "TransformationException",
+                    "message": "record failed to transform",
+                }
+            )
+        assert len(_outstanding_issues(interface, source_id, identifier)) == 3
+
+        record = _harvest_untransformable_record(
+            interface, job_data_waf_iso19115_2, identifier
+        )
+
+        issues = _outstanding_issues(interface, source_id, identifier)
+        assert [issue.type for issue in issues] == ["TransformationException"]
+        assert issues[0].harvest_record_id == record.id

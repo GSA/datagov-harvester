@@ -1185,11 +1185,12 @@ class Record:
             self.validate()
             self.sync_current_issues()
             self.sync()
-        except (
-            CompareException,
-            TransformationException,
-        ):
+        except CompareException:
             pass
+        except TransformationException:
+            # the record was reprocessed, so its outstanding issues are now
+            # just this run's transform error
+            self.sync_current_issues()
 
     def compare(self) -> None:
         """
