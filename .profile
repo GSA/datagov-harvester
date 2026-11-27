@@ -11,7 +11,7 @@ function vcap_get_service () {
   if [ "$name" = "opensearch" ]; then
     service_name=$OPENSEARCH_SERVICE_NAME
   fi
-  echo $VCAP_SERVICES | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | ($path | if . == null then empty else . end)"
+  printf '%s\n' "$VCAP_SERVICES" | jq --raw-output --arg service_name "$service_name" ".[][] | select(.name == \$service_name) | ($path | if . == null then empty else . end)"
 }
 
 export APP_NAME=$(echo $VCAP_APPLICATION | jq -r '.application_name')
@@ -31,6 +31,13 @@ export CF_SERVICE_USER=$(vcap_get_service secrets .credentials.CF_SERVICE_USER)
 
 export FLASK_APP_SECRET_KEY=$(vcap_get_service secrets .credentials.FLASK_APP_SECRET_KEY)
 export HARVEST_API_TOKEN=$(vcap_get_service secrets .credentials.HARVEST_API_TOKEN)
+# Optional per-client API key digests (docs/developer.md#api-client-credentials).
+# Must be a JSON-encoded *string* in the secrets service, so duplicate client IDs
+# reach Python intact; jq errors (and startup aborts) on any other JSON type, and
+# on a NUL character, which command substitution would otherwise drop silently.
+# Assigned separately from export so a jq failure isn't masked by export's status.
+HARVEST_API_CLIENTS=$(vcap_get_service secrets '.credentials.HARVEST_API_CLIENTS | if . == null then . elif type != "string" then error("HARVEST_API_CLIENTS must be a JSON-encoded string") elif any(explode[]; . == 0) then error("HARVEST_API_CLIENTS contains a NUL character") else . end')
+export HARVEST_API_CLIENTS
 export OPENID_PRIVATE_KEY=$(vcap_get_service secrets .credentials.OPENID_PRIVATE_KEY)
 export HARVEST_RUNNER_MAX_TASKS=${HARVEST_RUNNER_MAX_TASKS:-3}
 

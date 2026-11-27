@@ -7,6 +7,7 @@ from functools import wraps
 from apiflask.security import APIKeyHeaderAuth
 from flask import current_app, g, redirect, request, session, url_for
 
+from app.api_credentials import authenticate_api_key
 from app.auth_logging import get_client_ip
 
 logger = logging.getLogger("harvest_admin.auth")
@@ -39,22 +40,36 @@ class LoginRequiredAuth(APIKeyHeaderAuth):
                             request.path,
                         )
                         return f"error: {self.API_KEY_HEADER_NAME} header missing", 401
-                    api_token = current_app.config.get("API_TOKEN")
-                    if not api_token or provided_token != api_token:
+                    identity = authenticate_api_key(
+                        provided_token,
+                        current_app.config.get("API_CLIENTS"),
+                        current_app.config.get("API_TOKEN"),
+                    )
+                    if identity is None:
                         logger.warning(
                             "API auth rejected: invalid API key header for %s %s",
                             request.method,
                             request.path,
                         )
                         return "error: Unauthorized", 401
-                    g.request_actor = "<api_token>"
-                    g.request_auth_type = "api_token"
-                    logger.info(
-                        "event=user_login method=api_token user=<api_token> "
-                        "ip=%s path=%s",
-                        get_client_ip(),
-                        request.path,
-                    )
+                    g.request_actor = identity.actor
+                    g.request_auth_type = identity.auth_type
+                    if identity.client_id is None:
+                        logger.info(
+                            "event=user_login method=api_token user=<api_token> "
+                            "ip=%s path=%s",
+                            get_client_ip(),
+                            request.path,
+                        )
+                    else:
+                        logger.info(
+                            "event=user_login method=api_client user=%s "
+                            "client_id=%s ip=%s path=%s",
+                            identity.actor,
+                            identity.client_id,
+                            get_client_ip(),
+                            request.path,
+                        )
                     return f(*args, **kwargs)
 
                 # check session-based authentication for web users
