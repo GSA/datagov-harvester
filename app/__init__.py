@@ -13,6 +13,7 @@ from flask_migrate import Migrate
 from flask_talisman import Talisman
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from app.api_credentials import API_CLIENTS_ENV_VAR, parse_api_clients
 from app.constants import ADMIN_MAX_REQUEST_BYTES, ADMIN_MAX_REQUEST_MB
 from app.filters import (
     elapsed_time,
@@ -152,6 +153,10 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = env_values["FLASK_APP_SECRET_KEY"]
     app.config["API_TOKEN"] = env_values["HARVEST_API_TOKEN"]
+    # Optional per-client keys (digests only) for attributable API requests.
+    app.config["API_CLIENTS"] = parse_api_clients(
+        os.getenv(API_CLIENTS_ENV_VAR), legacy_token=app.config["API_TOKEN"]
+    )
     if os.getenv("FLASK_ENV") != "production":
         # Pick up template edits during local dev without restarting the process.
         app.config["TEMPLATES_AUTO_RELOAD"] = True

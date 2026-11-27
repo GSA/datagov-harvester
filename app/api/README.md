@@ -4,6 +4,10 @@ JSON/OpenAPI routes for the harvester's admin app, versioned under `/api/v1/...`
 
 See the [Harvester APIs wiki page](https://github.com/GSA/data.gov/wiki/Harvester-APIs) for how this API relates to `api.gsa.gov` and `api.data.gov`, and for the full versioning policy this README summarizes.
 
+## Authentication
+
+Write endpoints take an `X-API-Key` header. Besides the shared `HARVEST_API_TOKEN`, each caller can have its own key, so existing audit log lines record which client made a change. Named keys have the same access as the shared token. See the linked section for which operations are audited. See [API client credentials](../../docs/developer.md#api-client-credentials).
+
 ## Versioning policy
 
 Stay on `v1` by default. Bump only the specific endpoint that needs a breaking change; leave every other endpoint on `v1`. Do not bump the whole API for a change that only touches one endpoint.
